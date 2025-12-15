@@ -1,0 +1,249 @@
+import React, { useEffect, useState } from 'react'
+import { Button, Input, List, Popover, ColorPicker, Typography, Modal, Tree, message, Tooltip } from 'antd'
+import { PlusOutlined } from '@ant-design/icons'
+import ColorPresetManager from './ColorPresetManager.jsx'
+
+export default function CategorySidebar({ categories, activeCategory, onSelect, onSelectItem, onChanged }) {
+  const [name, setName] = useState('')
+  const [palette, setPalette] = useState([])
+  const [selectedPresetId, setSelectedPresetId] = useState(null)
+  const [managerOpen, setManagerOpen] = useState(false)
+  const [expandedKeys, setExpandedKeys] = useState([])
+  const [autoExpandParent, setAutoExpandParent] = useState(true)
+  const [addingParentId, setAddingParentId] = useState(null)
+  const [childName, setChildName] = useState('')
+  const [childPresetId, setChildPresetId] = useState(null)
+  const [filesByCategory, setFilesByCategory] = useState({})
+  const [editingId, setEditingId] = useState(null)
+  const [editingName, setEditingName] = useState('')
+
+  async function loadPalette() {
+    const list = await window.go.backend.App.ListColorPresets()
+    setPalette(list || [])
+  }
+
+  async function create() {
+    if (!name.trim()) {
+      message.error('请输入分类名称')
+      return
+    }
+    const preset = palette.find(p => p.id === selectedPresetId)
+    const hex = preset ? preset.hex : '#7c3aed'
+    await window.go.backend.App.CreateCategory(name, hex, null)
+    setName('')
+    setSelectedPresetId(null)
+    onChanged()
+  }
+
+  async function createChild() {
+    if (!childName.trim()) {
+      message.error('请输入分类名称')
+      return
+    }
+    const preset = palette.find(p => p.id === childPresetId)
+    const hex = preset ? preset.hex : '#7c3aed'
+    await window.go.backend.App.CreateCategory(childName, hex, addingParentId)
+    setAddingParentId(null)
+    setChildName('')
+    setChildPresetId(null)
+    onChanged()
+  }
+  async function updateColor(cat, hex) {
+    const value = typeof hex === 'string' ? hex : hex.toHexString()
+    await window.go.backend.App.UpdateCategory(cat.id, cat.name, value, cat.parentId)
+    onChanged()
+  }
+
+  useEffect(() => { loadPalette() }, [])
+
+  function truncate(s) {
+    if (!s) return ''
+    const t = s.trim()
+    return t.length > 5 ? t.slice(0, 5) + '…' : t
+  }
+
+  function startEdit(cat) {
+    setEditingId(cat.id)
+    setEditingName(cat.name || '')
+  }
+
+  async function saveEdit(cat) {
+    const next = (editingName || '').trim()
+    setEditingId(null)
+    if (!next) {
+      setEditingName('')
+      return
+    }
+    await window.go.backend.App.UpdateCategory(cat.id, next, cat.colorHex, cat.parentId)
+    setEditingName('')
+    onChanged()
+  }
+
+  async function loadCatFiles(catId) {
+    try {
+      const notes = await window.go.backend.App.ListNotes(catId)
+      setFilesByCategory(prev => ({ ...prev, [catId]: { notes: notes || [] } }))
+    } catch (e) {
+      // noop
+    }
+  }
+
+  function buildTree(list) {
+    const map = new Map()
+    list.forEach(c => {
+      map.set(c.id, {
+        key: String(c.id),
+        title: (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+            {editingId === c.id ? (
+              <Input
+                value={editingName}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => setEditingName(e.target.value)}
+                autoFocus
+                onBlur={() => saveEdit(c)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); saveEdit(c) }
+                  if (e.key === 'Escape') { e.preventDefault(); setEditingId(null); setEditingName('') }
+                }}
+                style={{ flex: 1, color: c.colorHex }}
+              />
+            ) : (
+              <div
+                style={{ flex: 1, color: c.colorHex, cursor: 'text' }}
+                onDoubleClick={(e) => { e.stopPropagation(); startEdit(c) }}
+              >
+                {c.name}
+              </div>
+            )}
+            <Button type="text" icon={<PlusOutlined />} onClick={(e) => { e.stopPropagation(); setAddingParentId(c.id) }} />
+          </div>
+        ),
+        children: [],
+        data: c
+      })
+    })
+    const roots = []
+    list.forEach(c => {
+      if (c.parentId) {
+        const parent = map.get(c.parentId)
+        if (parent) parent.children.push(map.get(c.id))
+        else roots.push(map.get(c.id))
+      } else {
+        roots.push(map.get(c.id))
+      }
+    })
+    // Append file nodes under each category if available（仅笔记）
+    for (const c of list) {
+      const entry = filesByCategory[c.id]
+      if (entry) {
+        const parent = map.get(c.id)
+        const children = parent.children
+        // Notes
+        entry.notes.forEach(n => {
+          children.push({
+            key: `note-${n.id}`,
+            title: (
+              <Tooltip title={n.title}>
+                <span>{truncate(n.title)}</span>
+              </Tooltip>
+            ),
+            file: { type: 'note', id: n.id, categoryId: c.id, title: n.title }
+          })
+        })
+      }
+    }
+    if (addingParentId && map.has(addingParentId)) {
+      const parent = map.get(addingParentId)
+      parent.children.push({
+        key: 'add-' + addingParentId,
+        title: (
+          <div style={{ display: 'grid', gap: 8, padding: 8 }}>
+            <Input
+              placeholder="子分类名称"
+              value={childName}
+              onChange={(e) => setChildName(e.target.value)}
+              style={{ color: (palette.find(p => p.id === childPresetId)?.hex) || undefined }}
+            />
+            <div className="palette-grid">
+              {palette.map(p => (
+                <Tooltip title={p.name} key={p.id}>
+                  <div
+                    className={`palette-item ${childPresetId === p.id ? 'active' : ''}`}
+                    style={{ background: p.hex }}
+                    onClick={() => setChildPresetId(p.id)}
+                  />
+                </Tooltip>
+              ))}
+            </div>
+            <div className="toolbar">
+              <Button onClick={() => { setAddingParentId(null); setChildName(''); setChildPresetId(null) }}>取消</Button>
+              <Button type="primary" onClick={createChild} disabled={!childName.trim()}>添加</Button>
+            </div>
+          </div>
+        )
+      })
+    }
+    return roots
+  }
+
+  const treeData = buildTree(categories || [])
+  const selectedHex = (palette.find(p => p.id === selectedPresetId)?.hex) || undefined
+  const childSelectedHex = (palette.find(p => p.id === childPresetId)?.hex) || undefined
+
+  return (
+    <div style={{ padding: 12 }}>
+      <div className="sidebar-header">
+        <Typography.Text strong>目录</Typography.Text>
+        <Button size="small" onClick={() => setManagerOpen(true)}>管理颜色</Button>
+      </div>
+      <div style={{ marginTop: 8, height: '60vh', overflow: 'auto' }}>
+        <Tree
+          treeData={treeData}
+          expandedKeys={expandedKeys}
+          onExpand={async (keys) => {
+            setExpandedKeys(keys)
+            setAutoExpandParent(false)
+            // Load files for newly expanded categories
+            for (const k of keys) {
+              if (String(k).startsWith('add-')) continue
+              const idNum = Number(k)
+              if (!Number.isNaN(idNum) && !filesByCategory[idNum]) {
+                await loadCatFiles(idNum)
+              }
+            }
+          }}
+          autoExpandParent={autoExpandParent}
+          showLine
+          onSelect={(keys, info) => {
+            if (!info || !info.node) return
+            if (info.node.data) {
+              onSelect(info.node.data.id)
+              if (onSelectItem) onSelectItem(null)
+            } else if (info.node.file && onSelectItem) {
+              onSelectItem(info.node.file)
+            }
+          }}
+        />
+      </div>
+      <div style={{ display: 'grid', gap: 8 }}>
+        <Input placeholder="新建分类" value={name} onChange={(e) => setName(e.target.value)} style={{ color: selectedHex }} />
+        <div className="palette-grid">
+          {palette.map(p => (
+            <Tooltip title={p.name} key={p.id}>
+              <div
+                className={`palette-item ${selectedPresetId === p.id ? 'active' : ''}`}
+                style={{ background: p.hex }}
+                onClick={() => setSelectedPresetId(p.id)}
+              />
+            </Tooltip>
+          ))}
+        </div>
+        <Button type="primary" onClick={create} disabled={!name.trim()}>添加</Button>
+      </div>
+      <Modal open={managerOpen} onCancel={() => setManagerOpen(false)} footer={null} title="颜色预设管理">
+        <ColorPresetManager onChanged={() => { loadPalette(); onChanged() }} />
+      </Modal>
+    </div>
+  )
+}

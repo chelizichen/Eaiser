@@ -1,0 +1,15 @@
+{
+  "name": "Eaiser",
+  "author": { "name": "Eaiser" },
+  "description": "Blender 与代码学习笔记",
+  "version": "0.1.0",
+  "homepage": "",
+  "outputfilename": "Eaiser",
+  "frontend": {
+    "dir": "frontend",
+    "install": "npm install",
+    "build": "npm run build",
+    "devServerURL": "http://localhost:5173"
+  }
+  ,"platform": ""
+}

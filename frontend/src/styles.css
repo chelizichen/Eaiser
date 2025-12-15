@@ -1,0 +1,50 @@
+html, body, #root { height: 100%; }
+* { box-sizing: border-box;margin: 0;padding: 0; }
+.codebox { background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.toolbar { display: flex; gap: 8px; }
+.sidebar-header { display: flex; align-items: center; justify-content: space-between; }
+
+.editor-page { position: relative; min-height: 80vh; }
+.editor-actions { position: absolute; right: 24px; bottom: 24px; display: flex; gap: 8px; }
+.editor-wrapper { height: 80vh; }
+.editor-wrapper .ql-container { height: calc(100% - 42px); }
+.editor-wrapper .ql-editor { min-height: 100%; }
+
+.ant-btn-primary { border-radius: 999px; background: linear-gradient(135deg,#6ec1ff 0%,#2f80ed 100%); border: none; }
+.ant-btn-primary:hover { filter: brightness(1.05); }
+.ant-modal-content { border-radius: 16px; }
+.palette-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.palette-item { width: 16px; height: 16px; border-radius: 10px; cursor: pointer; }
+.palette-item.active { box-shadow: 0 0 0 2px rgba(47,128,237,.25); }
+.viewer { max-width: 100%; overflow: auto; }
+.viewer-content img { max-width: 100%; height: auto; }
+.viewer-content pre { overflow: auto; }
+.viewer-content ul,
+.viewer-content ol {
+  margin: 0 0 8px 1.5em;
+  padding-left: 1.2em;
+}
+
+.viewer-content ul li {
+  list-style-type: disc;
+}
+
+.viewer-content ol li {
+  list-style-type: decimal;
+}
+
+/* 调整树形目录的对齐，让展开图标和名称在同一中线 */
+.ant-tree {
+  --ant-tree-node-height: 26px;
+}
+.ant-tree .ant-tree-treenode {
+  align-items: center;
+}
+.ant-tree .ant-tree-switcher {
+  display: flex;
+  align-items: center;
+}
+.ant-tree .ant-tree-node-content-wrapper {
+  display: flex;
+  align-items: center;
+}
