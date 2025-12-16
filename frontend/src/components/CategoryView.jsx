@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { Button, Card, List, Typography, Empty, Input } from 'antd'
 import { FileTextOutlined, SearchOutlined, AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import extractFirstImageUrl from '../lib/extractFirstImageurl'
 
 export default function CategoryView({ activeCategory, onNavigate, reloadToken }) {
   const [notes, setNotes] = useState([])
@@ -75,20 +76,54 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken }
           {viewMode === 'card' ? (
             <div style={{ 
               display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
+              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 260px))', 
               gap: 16 
             }}>
-              {filteredNotes.map((note) => (
-                <Card
-                  key={note.id}
-                  hoverable
-                  size="small"
-                  style={{ cursor: 'pointer' }}
-                  actions={[
+              {filteredNotes.map((note) => {
+                const bgUrl = extractFirstImageUrl(note.contentMd)
+                return (
+                  <Card
+                    key={note.id}
+                    hoverable
+                    size="small"
+                    style={{ 
+                      cursor: 'pointer',
+                      position: 'relative',
+                      height: 220,
+                      backgroundImage: bgUrl ? `url(${bgUrl})` : undefined,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat',
+                      // 只有有背景图时才强制白色文字，避免与浅色卡片背景冲突
+                      color: bgUrl ? '#fff' : undefined,
+                    }}
+                    bodyStyle={{
+                      padding: 12,
+                      // 有背景图时加一层更深的渐变遮罩，保证文字可读
+                      background: bgUrl 
+                        ? 'linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0.25))' 
+                        : undefined,
+                      borderRadius: 8,
+                    }}
+                    onClick={() =>
+                      onNavigate(null, {
+                        type: 'note',
+                        id: note.id,
+                        categoryId: note.categoryId,
+                        title: note.title
+                      })
+                    }
+                  >
+                    {/* 右上角小编辑按钮，避免占用大面积 */}
                     <Button
-                      key="edit"
                       size="small"
-                      type="link"
+                      type="text"
+                      style={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        color: '#00aeea',
+                      }}
                       onClick={(e) => {
                         e.stopPropagation()
                         onNavigate('notes', {
@@ -102,29 +137,20 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken }
                     >
                       编辑
                     </Button>
-                  ]}
-                  onClick={() =>
-                    onNavigate(null, {
-                      type: 'note',
-                      id: note.id,
-                      categoryId: note.categoryId,
-                      title: note.title
-                    })
-                  }
-                >
-                  <div>
-                    <Typography.Text strong style={{ fontSize: 16, display: 'block', marginBottom: 8 }}>
-                      {note.title}
-                    </Typography.Text>
-                    <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
-                      创建: {dayjs(note.createdAt).format('YYYY-MM-DD HH:mm')}
-                    </Typography.Text>
-                    <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
-                      更新: {dayjs(note.updatedAt).format('YYYY-MM-DD HH:mm')}
-                    </Typography.Text>
-                  </div>
-                </Card>
-              ))}
+                    <div>
+                      <Typography.Text strong style={{ fontSize: 16, display: 'block', marginBottom: 8,color: bgUrl ? 'rgba(255,255,255,0.85)' : undefined }}>
+                        {note.title}
+                      </Typography.Text>
+                      <Typography.Text style={{ fontSize: 12, display: 'block', color: bgUrl ? 'rgba(255,255,255,0.85)' : undefined }}>
+                        创建: {dayjs(note.createdAt).format('YYYY-MM-DD HH:mm')}
+                      </Typography.Text>
+                      <Typography.Text style={{ fontSize: 12, display: 'block', color: bgUrl ? 'rgba(255,255,255,0.85)' : undefined }}>
+                        更新: {dayjs(note.updatedAt).format('YYYY-MM-DD HH:mm')}
+                      </Typography.Text>
+                    </div>
+                  </Card>
+                )
+              })}
             </div>
           ) : (
             <List
