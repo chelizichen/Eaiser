@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { Button, Card, List, Typography, Empty, Input } from 'antd'
-import { FileTextOutlined, SearchOutlined } from '@ant-design/icons'
+import { FileTextOutlined, SearchOutlined, AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 
 export default function CategoryView({ activeCategory, onNavigate, reloadToken }) {
   const [notes, setNotes] = useState([])
   const [loading, setLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
+  const [viewMode, setViewMode] = useState('card') // 'list' 或 'card'
 
   async function loadAll() {
     setLoading(true)
@@ -56,6 +57,12 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken }
         >
           笔记
         </Button>
+        <Button
+          icon={viewMode === 'card' ? <UnorderedListOutlined /> : <AppstoreOutlined />}
+          onClick={() => setViewMode(viewMode === 'card' ? 'list' : 'card')}
+          size="middle"
+          title={viewMode === 'card' ? '切换到列表模式' : '切换到卡片模式'}
+        />
       </div>
 
       {/* 内容列表 */}
@@ -65,54 +72,110 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken }
 
       {notes.length > 0 && (
         <Card title={`笔记 (${filteredNotes.length}/${notes.length})`} size="small">
-          <List
-            dataSource={filteredNotes}
-            renderItem={(note) => (
-              <List.Item
-                style={{ padding: '8px 12px' }}
-                actions={[
-                  <Button
-                    key="edit"
-                    size="small"
-                    type="link"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      // 进入编辑模式：跳到 NotesTab，并携带要编辑的 note 信息
-                      onNavigate('notes', {
-                        type: 'note',
-                        id: note.id,
-                        categoryId: note.categoryId,
-                        title: note.title,
-                        mode: 'edit'
-                      })
-                    }}
-                  >
-                    编辑
-                  </Button>
-                ]}
-                onClick={() =>
-                  onNavigate(null, {
-                    type: 'note',
-                    id: note.id,
-                    categoryId: note.categoryId,
-                    title: note.title
-                  })
-                }                    
-              >
-                <div style={{ flex: 1 }}>
+          {viewMode === 'card' ? (
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
+              gap: 16 
+            }}>
+              {filteredNotes.map((note) => (
+                <Card
+                  key={note.id}
+                  hoverable
+                  size="small"
+                  style={{ cursor: 'pointer' }}
+                  actions={[
+                    <Button
+                      key="edit"
+                      size="small"
+                      type="link"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onNavigate('notes', {
+                          type: 'note',
+                          id: note.id,
+                          categoryId: note.categoryId,
+                          title: note.title,
+                          mode: 'edit'
+                        })
+                      }}
+                    >
+                      编辑
+                    </Button>
+                  ]}
+                  onClick={() =>
+                    onNavigate(null, {
+                      type: 'note',
+                      id: note.id,
+                      categoryId: note.categoryId,
+                      title: note.title
+                    })
+                  }
+                >
                   <div>
-                    <Typography.Text strong style={{cursor:"pointer"}}>{note.title}</Typography.Text>
-                    <Typography.Text type="secondary" style={{ fontSize: 12,marginLeft:12 }}>
+                    <Typography.Text strong style={{ fontSize: 16, display: 'block', marginBottom: 8 }}>
+                      {note.title}
+                    </Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
                       创建: {dayjs(note.createdAt).format('YYYY-MM-DD HH:mm')}
-                      {' • '}
+                    </Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
                       更新: {dayjs(note.updatedAt).format('YYYY-MM-DD HH:mm')}
                     </Typography.Text>
-                    
                   </div>
-                </div>
-              </List.Item>
-            )}
-          />
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <List
+              dataSource={filteredNotes}
+              renderItem={(note) => (
+                <List.Item
+                  style={{ padding: '8px 12px' }}
+                  actions={[
+                    <Button
+                      key="edit"
+                      size="small"
+                      type="link"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        // 进入编辑模式：跳到 NotesTab，并携带要编辑的 note 信息
+                        onNavigate('notes', {
+                          type: 'note',
+                          id: note.id,
+                          categoryId: note.categoryId,
+                          title: note.title,
+                          mode: 'edit'
+                        })
+                      }}
+                    >
+                      编辑
+                    </Button>
+                  ]}
+                  onClick={() =>
+                    onNavigate(null, {
+                      type: 'note',
+                      id: note.id,
+                      categoryId: note.categoryId,
+                      title: note.title
+                    })
+                  }                    
+                >
+                  <div style={{ flex: 1 }}>
+                    <div>
+                      <Typography.Text strong style={{cursor:"pointer"}}>{note.title}</Typography.Text>
+                      <Typography.Text type="secondary" style={{ fontSize: 12,marginLeft:12 }}>
+                        创建: {dayjs(note.createdAt).format('YYYY-MM-DD HH:mm')}
+                        {' • '}
+                        更新: {dayjs(note.updatedAt).format('YYYY-MM-DD HH:mm')}
+                      </Typography.Text>
+                      
+                    </div>
+                  </div>
+                </List.Item>
+              )}
+            />
+          )}
         </Card>
       )}      
 
