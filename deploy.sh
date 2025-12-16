@@ -5,7 +5,7 @@ cd frontend
 npm run build
 
 cd ..
-wails build -clean -platform darwin
+wails build -platform darwin
 open build/bin/Eaiser.app
 
 

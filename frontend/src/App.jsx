@@ -135,7 +135,7 @@ export default function App() {
             onChanged={refreshCategories}
           />
         </Sider>
-        <Content style={{ padding: 16, paddingTop: 56 }}>
+        <Content style={{ padding: 16, paddingTop: 32 }}>
           <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
             {(currentView !== 'category' || selectedItem) && (
               <Button 
