@@ -204,7 +204,7 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
   const childSelectedHex = (palette.find(p => p.id === childPresetId)?.hex) || undefined
 
   return (
-    <div style={{ padding: 12,marginTop:24,boxSizing:'border-box' }}>
+    <div style={{ padding: '36px 12px 12px 12px',boxSizing:'border-box','--wails-draggable':'drag' }}>
       <div className="sidebar-header">
         <Typography.Text strong>目录</Typography.Text>
         <Button size="small" onClick={() => setManagerOpen(true)}>管理颜色</Button>
