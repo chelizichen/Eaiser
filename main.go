@@ -5,7 +5,8 @@ import (
 	"embed"
 	"log"
 	"os"
-	"path/filepath"
+	"path/filepath" // 新增：用于判断平台
+	osruntime "runtime"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/menu"
@@ -39,9 +40,12 @@ func main() {
 	log.Printf("Eaiser start")
 	log.Printf("assets: %v", assets)
 	app := backend.NewApp()
-	
-	// 创建应用菜单
+
 	appMenu := menu.NewMenu()
+	if osruntime.GOOS == "darwin"{
+		appMenu.Append(menu.AppMenu())
+		appMenu.Append(menu.EditMenu()) // 这行必须加！
+	}
 	fileMenu := appMenu.AddSubmenu("文件")
 	fileMenu.AddText("刷新", keys.CmdOrCtrl("r"), func(_ *menu.CallbackData) {
 		runtime.EventsEmit(app.GetContext(), "menu-refresh")
@@ -60,7 +64,7 @@ func main() {
 		OnStartup:   app.Startup,
 		OnShutdown:  app.Shutdown,
 		Bind:        []interface{}{app},
-		Menu:        appMenu,
+		Menu: appMenu,
 		Mac: &mac.Options{
 			TitleBar: mac.TitleBarHiddenInset(),
 			About: &mac.AboutInfo{
