@@ -206,7 +206,13 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
   return (
     <div style={{ padding: '36px 12px 12px 12px',boxSizing:'border-box','--wails-draggable':'drag' }}>
       <div className="sidebar-header">
-        <Typography.Text strong>目录</Typography.Text>
+        <Typography.Text 
+          strong 
+          style={{ cursor: 'pointer' }}
+          onClick={() => onSelect(null)}
+        >
+          目录
+        </Typography.Text>
         <Button size="small" onClick={() => setManagerOpen(true)}>管理颜色</Button>
       </div>
       <div style={{ marginTop: 8, height: '60vh', overflow: 'auto' }}>
