@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { Layout, Button, message, ConfigProvider, Breadcrumb, Tooltip } from 'antd'
-import { ArrowLeftOutlined } from '@ant-design/icons'
+import { Layout, Button, message, ConfigProvider, Breadcrumb, Tooltip, theme } from 'antd'
+import { ArrowLeftOutlined, BulbOutlined, BulbFilled } from '@ant-design/icons'
 import CategorySidebar from './components/CategorySidebar.jsx'
 import ContentViewer from './components/ContentViewer.jsx'
 import CategoryView from './components/CategoryView.jsx'
@@ -15,6 +15,11 @@ export default function App() {
   const [currentView, setCurrentView] = useState('category') // 'category' | 'notes'
   const [listVersion, setListVersion] = useState(0) // 用于刷新 CategoryView 列表
   const [editingNote, setEditingNote] = useState(null) // 当前正在编辑的笔记
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    // 从 localStorage 读取主题设置，默认为亮色
+    const saved = localStorage.getItem('theme')
+    return saved === 'dark'
+  })
 
   async function refreshCategories() {
     try {
@@ -31,6 +36,33 @@ export default function App() {
     setSelectedItem(null)
     setCurrentView('category') // 切换目录时回到目录视图
   }, [activeCategory])
+
+  // 监听菜单栏的刷新事件
+  useEffect(() => {
+    if (window.runtime) {
+      window.runtime.EventsOn('menu-refresh', () => {
+        window.location.reload()
+      })
+    }
+    return () => {
+      if (window.runtime) {
+        window.runtime.EventsOff('menu-refresh')
+      }
+    }
+  }, [])
+
+  // 切换主题并保存到 localStorage
+  function toggleTheme() {
+    setIsDarkMode(prev => {
+      const newMode = !prev
+      localStorage.setItem('theme', newMode ? 'dark' : 'light')
+      // 通知后端主题变化（用于窗口外观控制）
+      if (window.go?.backend?.App?.SetTheme) {
+        window.go.backend.App.SetTheme(newMode)
+      }
+      return newMode
+    })
+  }
 
   function handleNavigate(view, item = null) {
     // 如果是从列表点击“编辑”进入
@@ -78,19 +110,23 @@ export default function App() {
   return (
     <ConfigProvider
       theme={{
+        algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
         token: {
           colorPrimary: '#2f80ed',
           colorInfo: '#2f80ed',
           borderRadius: 12,
           controlHeight: 36,
           fontSize: 14,
-          colorText: '#1d2129',
-          colorTextSecondary: '#69727d'
+          ...(isDarkMode ? {} : {
+            colorText: '#1d2129',
+            colorTextSecondary: '#69727d'
+          })
         }
       }}
     >
       <Layout style={{ height: '100%' }}>
-        <Sider width={280} theme="light">
+        {/* 顶部可拖动区域 */}
+        <Sider width={280} theme={isDarkMode ? 'dark' : 'light'}>
           <CategorySidebar
             categories={categories}
             activeCategory={activeCategory}
@@ -99,7 +135,7 @@ export default function App() {
             onChanged={refreshCategories}
           />
         </Sider>
-        <Content style={{ padding: 16 }}>
+        <Content style={{ padding: 16, paddingTop: 56 }}>
           <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
             {(currentView !== 'category' || selectedItem) && (
               <Button 
@@ -134,6 +170,13 @@ export default function App() {
                 </>
               )}
             </Breadcrumb>
+            <Tooltip title={isDarkMode ? '切换到亮色模式' : '切换到暗色模式'}>
+              <Button 
+                type="text"
+                icon={isDarkMode ? <BulbFilled /> : <BulbOutlined />}
+                onClick={toggleTheme}
+              />
+            </Tooltip>
           </div>
           
           {selectedItem ? (

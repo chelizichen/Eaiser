@@ -27,9 +27,7 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
       message.error('请输入分类名称')
       return
     }
-    const preset = palette.find(p => p.id === selectedPresetId)
-    const hex = preset ? preset.hex : '#7c3aed'
-    await window.go.backend.App.CreateCategory(name, hex, null)
+    await window.go.backend.App.CreateCategory(name, selectedPresetId, null)
     setName('')
     setSelectedPresetId(null)
     onChanged()
@@ -40,17 +38,14 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
       message.error('请输入分类名称')
       return
     }
-    const preset = palette.find(p => p.id === childPresetId)
-    const hex = preset ? preset.hex : '#7c3aed'
-    await window.go.backend.App.CreateCategory(childName, hex, addingParentId)
+    await window.go.backend.App.CreateCategory(childName, childPresetId, addingParentId)
     setAddingParentId(null)
     setChildName('')
     setChildPresetId(null)
     onChanged()
   }
-  async function updateColor(cat, hex) {
-    const value = typeof hex === 'string' ? hex : hex.toHexString()
-    await window.go.backend.App.UpdateCategory(cat.id, cat.name, value, cat.parentId)
+  async function updateColor(cat, presetId) {
+    await window.go.backend.App.UpdateCategory(cat.id, cat.name, presetId, cat.parentId)
     onChanged()
   }
 
@@ -74,7 +69,7 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
       setEditingName('')
       return
     }
-    await window.go.backend.App.UpdateCategory(cat.id, next, cat.colorHex, cat.parentId)
+    await window.go.backend.App.UpdateCategory(cat.id, next, cat.colorPresetId, cat.parentId)
     setEditingName('')
     onChanged()
   }
@@ -88,9 +83,17 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
     }
   }
 
+  // 根据颜色预设 ID 获取对应的 hex 值
+  function getColorHex(colorPresetId) {
+    if (!colorPresetId) return '#7c3aed' // 默认紫色
+    const preset = palette.find(p => p.id === colorPresetId)
+    return preset ? preset.hex : '#7c3aed'
+  }
+
   function buildTree(list) {
     const map = new Map()
     list.forEach(c => {
+      const colorHex = getColorHex(c.colorPresetId)
       map.set(c.id, {
         key: String(c.id),
         title: (
@@ -106,11 +109,11 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
                   if (e.key === 'Enter') { e.preventDefault(); saveEdit(c) }
                   if (e.key === 'Escape') { e.preventDefault(); setEditingId(null); setEditingName('') }
                 }}
-                style={{ flex: 1, color: c.colorHex }}
+                style={{ flex: 1, color: colorHex }}
               />
             ) : (
               <div
-                style={{ flex: 1, color: c.colorHex, cursor: 'text' }}
+                style={{ flex: 1, color: colorHex, cursor: 'text' }}
                 onDoubleClick={(e) => { e.stopPropagation(); startEdit(c) }}
               >
                 {c.name}
@@ -165,15 +168,24 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
               onChange={(e) => setChildName(e.target.value)}
               style={{ color: (palette.find(p => p.id === childPresetId)?.hex) || undefined }}
             />
-            <div className="palette-grid">
+            <div className="palette-grid-v2">
               {palette.map(p => (
-                <Tooltip title={p.name} key={p.id}>
-                  <div
-                    className={`palette-item ${childPresetId === p.id ? 'active' : ''}`}
+                <div
+                  key={p.id}
+                  className={`palette-item-v2 ${childPresetId === p.id ? 'active' : ''}`}
+                  style={{ 
+                    borderColor: p.hex,
+                    color: childPresetId === p.id ? '#fff' : p.hex,
+                    background: childPresetId === p.id ? p.hex : 'transparent'
+                  }}
+                  onClick={() => setChildPresetId(p.id)}
+                >
+                  <div 
+                    className="palette-dot" 
                     style={{ background: p.hex }}
-                    onClick={() => setChildPresetId(p.id)}
                   />
-                </Tooltip>
+                  <span className="palette-name">{p.name}</span>
+                </div>
               ))}
             </div>
             <div className="toolbar">
@@ -192,7 +204,7 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
   const childSelectedHex = (palette.find(p => p.id === childPresetId)?.hex) || undefined
 
   return (
-    <div style={{ padding: 12 }}>
+    <div style={{ padding: 12,marginTop:24,boxSizing:'border-box' }}>
       <div className="sidebar-header">
         <Typography.Text strong>目录</Typography.Text>
         <Button size="small" onClick={() => setManagerOpen(true)}>管理颜色</Button>
@@ -228,15 +240,24 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
       </div>
       <div style={{ display: 'grid', gap: 8 }}>
         <Input placeholder="新建分类" value={name} onChange={(e) => setName(e.target.value)} style={{ color: selectedHex }} />
-        <div className="palette-grid">
+        <div className="palette-grid-v2">
           {palette.map(p => (
-            <Tooltip title={p.name} key={p.id}>
-              <div
-                className={`palette-item ${selectedPresetId === p.id ? 'active' : ''}`}
+            <div
+              key={p.id}
+              className={`palette-item-v2 ${selectedPresetId === p.id ? 'active' : ''}`}
+              style={{ 
+                borderColor: p.hex,
+                color: selectedPresetId === p.id ? '#fff' : p.hex,
+                background: selectedPresetId === p.id ? p.hex : 'transparent'
+              }}
+              onClick={() => setSelectedPresetId(p.id)}
+            >
+              <div 
+                className="palette-dot" 
                 style={{ background: p.hex }}
-                onClick={() => setSelectedPresetId(p.id)}
               />
-            </Tooltip>
+              <span className="palette-name">{p.name}</span>
+            </div>
           ))}
         </div>
         <Button type="primary" onClick={create} disabled={!name.trim()}>添加</Button>

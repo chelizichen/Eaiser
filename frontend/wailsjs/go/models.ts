@@ -3,7 +3,7 @@ export namespace backend {
 	export class Category {
 	    id: number;
 	    name: string;
-	    colorHex: string;
+	    colorPresetId?: number;
 	    parentId?: number;
 	    // Go type: time
 	    createdAt: any;
@@ -18,7 +18,7 @@ export namespace backend {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
-	        this.colorHex = source["colorHex"];
+	        this.colorPresetId = source["colorPresetId"];
 	        this.parentId = source["parentId"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);

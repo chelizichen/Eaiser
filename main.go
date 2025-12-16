@@ -8,8 +8,12 @@ import (
 	"path/filepath"
 
 	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/menu"
+	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed all:frontend/dist
@@ -35,6 +39,18 @@ func main() {
 	log.Printf("Eaiser start")
 	log.Printf("assets: %v", assets)
 	app := backend.NewApp()
+	
+	// 创建应用菜单
+	appMenu := menu.NewMenu()
+	fileMenu := appMenu.AddSubmenu("文件")
+	fileMenu.AddText("刷新", keys.CmdOrCtrl("r"), func(_ *menu.CallbackData) {
+		runtime.EventsEmit(app.GetContext(), "menu-refresh")
+	})
+	fileMenu.AddSeparator()
+	fileMenu.AddText("退出", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
+		runtime.Quit(app.GetContext())
+	})
+	
 	err := wails.Run(&options.App{
 		Title:  "Eaiser",
 		Width:  1600,
@@ -44,6 +60,14 @@ func main() {
 		OnStartup:   app.Startup,
 		OnShutdown:  app.Shutdown,
 		Bind:        []interface{}{app},
+		Menu:        appMenu,
+		Mac: &mac.Options{
+			TitleBar: mac.TitleBarHiddenInset(),
+			About: &mac.AboutInfo{
+				Title:   "Eaiser",
+				Message: "Blender 与代码学习笔记",
+			},
+		},
 	})
 	if err != nil {
 		log.Printf("Error: %v \n", err.Error())

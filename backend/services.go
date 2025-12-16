@@ -1,14 +1,6 @@
 package backend
 
-import (
-	"crypto/sha256"
-	"encoding/base64"
-	"errors"
-	"io"
-	"log"
-	"os"
-	"strings"
-)
+import "log"
 
 func (a *App) CreateColorPreset(name string, hex string) (*ColorPreset, error) {
 	p := &ColorPreset{Name: name, Hex: hex}
@@ -38,8 +30,8 @@ func (a *App) DeleteColorPreset(id uint) error {
 	return DB.Delete(&ColorPreset{}, id).Error
 }
 
-func (a *App) CreateCategory(name string, colorHex string, parentID *uint) (*Category, error) {
-	c := &Category{Name: name, ColorHex: colorHex, ParentID: parentID}
+func (a *App) CreateCategory(name string, colorPresetID *uint, parentID *uint) (*Category, error) {
+	c := &Category{Name: name, ColorPresetID: colorPresetID, ParentID: parentID}
 	err := DB.Create(c).Error
 	return c, err
 }
@@ -50,11 +42,11 @@ func (a *App) ListCategories() ([]Category, error) {
 	return list, err
 }
 
-func (a *App) UpdateCategory(id uint, name string, colorHex string, parentID *uint) error {
+func (a *App) UpdateCategory(id uint, name string, colorPresetID *uint, parentID *uint) error {
 	return DB.Model(&Category{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"name":      name,
-		"color_hex": colorHex,
-		"parent_id": parentID,
+		"name":             name,
+		"color_preset_id":  colorPresetID,
+		"parent_id":        parentID,
 	}).Error
 }
 
@@ -107,34 +99,6 @@ func (a *App) UpdateNoteMD(id uint, title string, language string, contentMD str
 
 func (a *App) DeleteNote(id uint) error {
 	return DB.Delete(&Note{}, id).Error
-}
-
-func fileSHA256(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	h := sha256.New()
-	_, err = io.Copy(h, f)
-	if err != nil {
-		return "", err
-	}
-	sum := h.Sum(nil)
-	return base64.StdEncoding.EncodeToString(sum), nil
-}
-
-func firstDataURIFromMarkdown(md string) (string, error) {
-	idx := strings.Index(md, "data:image/")
-	if idx == -1 {
-		return "", errors.New("no data uri found")
-	}
-	start := idx
-	end := strings.Index(md[start:], ")")
-	if end == -1 {
-		return "", errors.New("unterminated data uri")
-	}
-	return md[start : start+end], nil
 }
 
 // LogFrontend prints frontend logs to backend stdout for easy debugging

@@ -30,6 +30,10 @@ export function DeleteNote(arg1) {
   return window['go']['backend']['App']['DeleteNote'](arg1);
 }
 
+export function GetContext() {
+  return window['go']['backend']['App']['GetContext']();
+}
+
 export function ListCategories() {
   return window['go']['backend']['App']['ListCategories']();
 }
@@ -44,6 +48,10 @@ export function ListNotes(arg1) {
 
 export function LogFrontend(arg1) {
   return window['go']['backend']['App']['LogFrontend'](arg1);
+}
+
+export function SetTheme(arg1) {
+  return window['go']['backend']['App']['SetTheme'](arg1);
 }
 
 export function UpdateCategory(arg1, arg2, arg3, arg4) {

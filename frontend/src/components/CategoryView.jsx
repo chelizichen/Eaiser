@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react'
-import { Button, Card, List, Typography, Empty } from 'antd'
-import { FileTextOutlined } from '@ant-design/icons'
+import React, { useEffect, useState, useMemo } from 'react'
+import { Button, Card, List, Typography, Empty, Input } from 'antd'
+import { FileTextOutlined, SearchOutlined } from '@ant-design/icons'
+import dayjs from 'dayjs'
 
 export default function CategoryView({ activeCategory, onNavigate, reloadToken }) {
   const [notes, setNotes] = useState([])
   const [loading, setLoading] = useState(false)
+  const [searchText, setSearchText] = useState('')
 
   async function loadAll() {
     setLoading(true)
@@ -23,19 +25,36 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken }
     loadAll()
   }, [activeCategory, reloadToken])
 
+  // 根据搜索文本过滤笔记
+  const filteredNotes = useMemo(() => {
+    if (!searchText.trim()) return notes
+    const lowerSearch = searchText.toLowerCase()
+    return notes.filter(note => 
+      (note.title || '').toLowerCase().includes(lowerSearch)
+    )
+  }, [notes, searchText])
+
   const hasContent = notes.length > 0
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
-      {/* 导航按钮 */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+      {/* 搜索框和导航按钮 */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+        <Input
+          placeholder="搜索笔记标题..."
+          prefix={<SearchOutlined />}
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          allowClear
+          style={{ flex: 1, maxWidth: 300 }}
+        />
         <Button 
           type="primary"
           icon={<FileTextOutlined />}
           onClick={() => onNavigate('notes')}
           size="middle"
         >
-          代码笔记
+          笔记
         </Button>
       </div>
 
@@ -45,9 +64,9 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken }
       )}
 
       {notes.length > 0 && (
-        <Card title={`代码笔记 (${notes.length})`} size="small">
+        <Card title={`笔记 (${filteredNotes.length}/${notes.length})`} size="small">
           <List
-            dataSource={notes}
+            dataSource={filteredNotes}
             renderItem={(note) => (
               <List.Item
                 style={{ padding: '8px 12px' }}
@@ -80,7 +99,17 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken }
                   })
                 }                    
               >
-                <Typography.Text strong>{note.title}</Typography.Text>
+                <div style={{ flex: 1 }}>
+                  <div>
+                    <Typography.Text strong style={{cursor:"pointer"}}>{note.title}</Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 12,marginLeft:12 }}>
+                      创建: {dayjs(note.createdAt).format('YYYY-MM-DD HH:mm')}
+                      {' • '}
+                      更新: {dayjs(note.updatedAt).format('YYYY-MM-DD HH:mm')}
+                    </Typography.Text>
+                    
+                  </div>
+                </div>
               </List.Item>
             )}
           />

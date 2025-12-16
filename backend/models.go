@@ -3,12 +3,12 @@ package backend
 import "time"
 
 type Category struct {
-	ID        uint      `json:"id" gorm:"primaryKey"`
-	Name      string    `json:"name" gorm:"size:100;not null"`
-	ColorHex  string    `json:"colorHex" gorm:"size:7"`
-	ParentID  *uint     `json:"parentId"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID             uint      `json:"id" gorm:"primaryKey"`
+	Name           string    `json:"name" gorm:"size:100;not null"`
+	ColorPresetID  *uint     `json:"colorPresetId"`
+	ParentID       *uint     `json:"parentId"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
 type ColorPreset struct {
