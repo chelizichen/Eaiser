@@ -57,6 +57,7 @@ export default function NotesTab({ activeCategory, onSaved, editingNote }) {
           onChange={(e) => {
             setTitle(e.target.value)
           }} 
+          style={{marginBottom:12}}
         />
         <MarkdownEditor 
           valueMD={markdown}

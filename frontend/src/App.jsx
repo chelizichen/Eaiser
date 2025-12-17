@@ -124,7 +124,8 @@ export default function App() {
         }
       }}
     >
-      <Layout style={{ height: '100%' }}>
+      <div className={isDarkMode ? 'theme-dark' : 'theme-light'} style={{ height: '100%' }}>
+        <Layout style={{ height: '100%' }}>
         {/* 顶部可拖动区域 */}
         <Sider width={280} theme={isDarkMode ? 'dark' : 'light'}>
           <CategorySidebar
@@ -136,7 +137,7 @@ export default function App() {
           />
         </Sider>
         <Content style={{ padding: 16, paddingTop: 0 }}>
-          <div style={{ height:36, width: '100%', '--wails-draggable':'drag', cursor:'grab' }}></div>
+          <div style={{ height:36, width: '100%', '--wails-draggable':'drag', cursor:'grab', display:'flex', alignItems:'center', justifyContent:'center' }}></div>
           <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
             {(currentView !== 'category' || selectedItem) && (
               <Button 
@@ -181,7 +182,22 @@ export default function App() {
           </div>
           
           {selectedItem ? (
-            <ContentViewer item={selectedItem} />
+            <ContentViewer 
+              item={selectedItem} 
+              onEdit={({ item: it, data }) => {
+                const targetId = it?.id || data?.id
+                const targetCategory = it?.categoryId || data?.categoryId
+                const targetTitle = data?.title || it?.title
+                if (!targetId) return
+                handleNavigate('notes', {
+                  type: 'note',
+                  id: targetId,
+                  categoryId: targetCategory,
+                  title: targetTitle,
+                  mode: 'edit'
+                })
+              }}
+            />
           ) : currentView === 'category' ? (
             <CategoryView 
               activeCategory={activeCategory} 
@@ -201,7 +217,8 @@ export default function App() {
             />
           ) : null}
         </Content>
-      </Layout>
+        </Layout>
+      </div>
     </ConfigProvider>
   )
 }

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { Button, Typography } from 'antd'
+import { EditOutlined } from '@ant-design/icons'
 import { renderMarkdown } from '../lib/markdown'
 import 'highlight.js/styles/github.css'
 import hljs from 'highlight.js'
 
-export default function ContentViewer({ item }) {
+export default function ContentViewer({ item, onEdit }) {
   const [data, setData] = useState(null)
 
   async function load() {
@@ -57,8 +58,27 @@ export default function ContentViewer({ item }) {
     const isHTML = raw.trim().startsWith('<')
     const html = isHTML ? raw : renderMarkdown(raw)
     return (
-      <div style={{ display: 'grid', gap: 12, overflow:'auto', height:'90vh' }}>
-        <Typography.Title level={4}>{data.title}</Typography.Title>
+      <div
+        style={{
+          display: 'grid',
+          gap: 12,
+          overflow: 'auto',
+          height: '90vh',
+          alignContent: 'start',
+          alignItems: 'start',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 12 }}>
+          <Typography.Title level={4} style={{ margin: 0 }}>{data.title}</Typography.Title>
+          <Button
+            size="small"
+            type="primary"
+            icon={<EditOutlined />}
+            onClick={() => onEdit && onEdit({ item, data })}
+          >
+            编辑
+          </Button>
+        </div>
         <div className="viewer-content" dangerouslySetInnerHTML={{ __html: html }} />
       </div>
     )

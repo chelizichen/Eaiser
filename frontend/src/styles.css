@@ -68,6 +68,30 @@ html, body, #root { height: 100%; }
   list-style-type: decimal;
 }
 
+.theme-light .hljs,
+.theme-light .viewer-content pre,
+.theme-light .viewer-content code {
+  background: #f6f8fa;
+  color: #24292e;
+  border: 1px solid #e5e7eb;
+}
+
+.theme-dark .hljs,
+.theme-dark .viewer-content pre,
+.theme-dark .viewer-content code {
+  background: #0d1117;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+}
+
+.theme-light .viewer-content pre {
+  border-radius: 8px;
+}
+
+.theme-dark .viewer-content pre {
+  border-radius: 8px;
+}
+
 /* 调整树形目录的对齐，让展开图标和名称在同一中线 */
 .ant-tree {
   --ant-tree-node-height: 26px;
