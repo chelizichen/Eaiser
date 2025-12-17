@@ -6,8 +6,8 @@ export function CreateCategory(arg1, arg2, arg3) {
   return window['go']['backend']['App']['CreateCategory'](arg1, arg2, arg3);
 }
 
-export function CreateColorPreset(arg1, arg2) {
-  return window['go']['backend']['App']['CreateColorPreset'](arg1, arg2);
+export function CreateColorPreset(arg1, arg2, arg3) {
+  return window['go']['backend']['App']['CreateColorPreset'](arg1, arg2, arg3);
 }
 
 export function CreateNote(arg1, arg2, arg3, arg4, arg5) {
@@ -50,6 +50,10 @@ export function LogFrontend(arg1) {
   return window['go']['backend']['App']['LogFrontend'](arg1);
 }
 
+export function RequireBiometric(arg1) {
+  return window['go']['backend']['App']['RequireBiometric'](arg1);
+}
+
 export function SetTheme(arg1) {
   return window['go']['backend']['App']['SetTheme'](arg1);
 }
@@ -58,8 +62,8 @@ export function UpdateCategory(arg1, arg2, arg3, arg4) {
   return window['go']['backend']['App']['UpdateCategory'](arg1, arg2, arg3, arg4);
 }
 
-export function UpdateColorPreset(arg1, arg2, arg3) {
-  return window['go']['backend']['App']['UpdateColorPreset'](arg1, arg2, arg3);
+export function UpdateColorPreset(arg1, arg2, arg3, arg4) {
+  return window['go']['backend']['App']['UpdateColorPreset'](arg1, arg2, arg3, arg4);
 }
 
 export function UpdateNote(arg1, arg2, arg3, arg4, arg5, arg6) {

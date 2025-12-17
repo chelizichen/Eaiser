@@ -42,7 +42,7 @@ func main() {
 	app := backend.NewApp()
 
 	appMenu := menu.NewMenu()
-	if osruntime.GOOS == "darwin"{
+	if osruntime.GOOS == "darwin" {
 		appMenu.Append(menu.AppMenu())
 		appMenu.Append(menu.EditMenu()) // 这行必须加！
 	}
@@ -54,7 +54,7 @@ func main() {
 	fileMenu.AddText("退出", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
 		runtime.Quit(app.GetContext())
 	})
-	
+
 	err := wails.Run(&options.App{
 		Title:  "Eaiser",
 		Width:  1600,
@@ -64,7 +64,7 @@ func main() {
 		OnStartup:   app.Startup,
 		OnShutdown:  app.Shutdown,
 		Bind:        []interface{}{app},
-		Menu: appMenu,
+		Menu:        appMenu,
 		Mac: &mac.Options{
 			TitleBar: mac.TitleBarHiddenInset(),
 			About: &mac.AboutInfo{

@@ -76,8 +76,9 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
 
   async function loadCatFiles(catId) {
     try {
-      const notes = await window.go.backend.App.ListNotes(catId)
-      setFilesByCategory(prev => ({ ...prev, [catId]: { notes: notes || [] } }))
+      const cid = Number(catId)
+      const notes = await window.go.backend.App.ListNotes(cid)
+      setFilesByCategory(prev => ({ ...prev, [cid]: { notes: notes || [] } }))
     } catch (e) {
       // noop
     }
@@ -119,7 +120,7 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
                 {c.name}
               </div>
             )}
-            <Button type="text" icon={<PlusOutlined />} onClick={(e) => { e.stopPropagation(); setAddingParentId(c.id) }} />
+            <Button type="text" icon={<PlusOutlined />} onClick={(e) => { e.stopPropagation(); setAddingParentId(c.id); setChildEncrypted(false) }} />
           </div>
         ),
         children: [],
@@ -139,7 +140,7 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
     // Append file nodes under each category if available（仅笔记）
     for (const c of list) {
       const entry = filesByCategory[c.id]
-      if (entry) {
+      if (entry) { // 已经加载过的直接展开
         const parent = map.get(c.id)
         const children = parent.children
         // Notes
@@ -184,7 +185,7 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
                     className="palette-dot" 
                     style={{ background: p.hex }}
                   />
-                  <span className="palette-name">{p.name}</span>
+                  <span className="palette-name">{p.name}{p.encrypted ? ' 🔒' : ''}</span>
                 </div>
               ))}
             </div>
@@ -236,6 +237,17 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
           onSelect={(keys, info) => {
             if (!info || !info.node) return
             if (info.node.data) {
+              try {
+                window.go.backend.App.LogFrontend(JSON.stringify({
+                  event: 'CategorySidebar.select',
+                  categoryId: info.node.data.id,
+                  name: info.node.data.name,
+                  presetId: info.node.data.colorPresetId,
+                  encrypted: info.node.data.colorPreset?.encrypted,
+                }))
+              } catch (e) {
+                // ignore
+              }
               onSelect(info.node.data.id)
               if (onSelectItem) onSelectItem(null)
             } else if (info.node.file && onSelectItem) {

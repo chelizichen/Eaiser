@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	osruntime "runtime"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -37,4 +38,12 @@ func (a *App) SetTheme(isDark bool) {
 	} else {
 		runtime.LogInfo(a.ctx, "Theme switched to light mode")
 	}
+}
+
+// RequireBiometric 在需要时请求 Touch ID（仅 macOS 生效）
+func (a *App) RequireBiometric(reason string) error {
+	if osruntime.GOOS != "darwin" {
+		return nil
+	}
+	return requireBiometricAuth(reason)
 }

@@ -1,14 +1,20 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { Button, Card, List, Typography, Empty, Input } from 'antd'
+import { Button, Card, List, Typography, Empty, Input, Alert } from 'antd'
 import { FileTextOutlined, SearchOutlined, AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import extractFirstImageUrl from '../lib/extractFirstImageurl'
 
-export default function CategoryView({ activeCategory, onNavigate, reloadToken }) {
+export default function CategoryView({ activeCategory, onNavigate, reloadToken, categories, ensureUnlocked }) {
   const [notes, setNotes] = useState([])
   const [loading, setLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [viewMode, setViewMode] = useState('card') // 'list' 或 'card'
+
+  const activeCat = useMemo(
+    () => (categories || []).find(c => c.id === activeCategory),
+    [categories, activeCategory]
+  )
+  const isEncrypted = activeCat?.colorPreset?.encrypted
 
   async function loadAll() {
     setLoading(true)
@@ -25,7 +31,7 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken }
 
   useEffect(() => {
     loadAll()
-  }, [activeCategory, reloadToken])
+  }, [activeCategory, reloadToken, isEncrypted])
 
   // 根据搜索文本过滤笔记
   const filteredNotes = useMemo(() => {
@@ -82,6 +88,20 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken }
               }}>
                 {filteredNotes.map((note) => {
                   const bgUrl = extractFirstImageUrl(note.contentMd)
+                  const openNote = async (mode) => {
+                    const cid = note.categoryId ?? activeCategory
+                    if (ensureUnlocked && cid != null) {
+                      const ok = await ensureUnlocked(cid, mode === 'notes' ? '内容' : '内容')
+                      if (!ok) return
+                    }
+                    onNavigate(mode, {
+                      type: 'note',
+                      id: note.id,
+                      categoryId: note.categoryId,
+                      title: note.title,
+                      ...(mode === 'notes' ? { mode: 'edit' } : {})
+                    })
+                  }
                   return (
                     <Card
                       key={note.id}
@@ -106,14 +126,7 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken }
                           : undefined,
                         borderRadius: 8,
                       }}
-                      onClick={() =>
-                        onNavigate(null, {
-                          type: 'note',
-                          id: note.id,
-                          categoryId: note.categoryId,
-                          title: note.title
-                        })
-                      }
+                      onClick={() => openNote(null)}
                     >
                       {/* 右上角小编辑按钮，避免占用大面积 */}
                       <Button
@@ -127,13 +140,7 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken }
                         }}
                         onClick={(e) => {
                           e.stopPropagation()
-                          onNavigate('notes', {
-                            type: 'note',
-                            id: note.id,
-                            categoryId: note.categoryId,
-                            title: note.title,
-                            mode: 'edit'
-                          })
+                          openNote('notes')
                         }}
                       >
                         编辑
@@ -154,19 +161,23 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken }
                 })}
               </div>
             ) : (
-              <List
-                dataSource={filteredNotes}
-                renderItem={(note) => (
-                  <List.Item
-                    style={{ padding: '8px 12px' }}
-                    actions={[
-                      <Button
-                        key="edit"
-                        size="small"
-                        type="link"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          // 进入编辑模式：跳到 NotesTab，并携带要编辑的 note 信息
+          <List
+            dataSource={filteredNotes}
+            renderItem={(note) => (
+              <List.Item
+                style={{ padding: '8px 12px' }}
+                actions={[
+                  <Button
+                    key="edit"
+                    size="small"
+                    type="link"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      // 进入编辑模式：跳到 NotesTab，并携带要编辑的 note 信息
+                      const cid = note.categoryId ?? activeCategory
+                      if (ensureUnlocked && cid != null) {
+                        ensureUnlocked(cid, '内容').then((ok) => {
+                          if (!ok) return
                           onNavigate('notes', {
                             type: 'note',
                             id: note.id,
@@ -174,34 +185,51 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken }
                             title: note.title,
                             mode: 'edit'
                           })
-                        }}
-                      >
-                        编辑
-                      </Button>
-                    ]}
-                    onClick={() =>
-                      onNavigate(null, {
-                        type: 'note',
-                        id: note.id,
-                        categoryId: note.categoryId,
-                        title: note.title
-                      })
-                    }                    
+                        })
+                      } else {
+                        onNavigate('notes', {
+                          type: 'note',
+                          id: note.id,
+                          categoryId: note.categoryId,
+                          title: note.title,
+                          mode: 'edit'
+                        })
+                      }
+                    }}
                   >
-                    <div style={{ flex: 1 }}>
-                      <div>
-                        <Typography.Text strong style={{cursor:"pointer"}}>{note.title}</Typography.Text>
-                        <Typography.Text type="secondary" style={{ fontSize: 12,marginLeft:12 }}>
-                          创建: {dayjs(note.createdAt).format('YYYY-MM-DD HH:mm')}
-                          {' • '}
-                          更新: {dayjs(note.updatedAt).format('YYYY-MM-DD HH:mm')}
-                        </Typography.Text>
-                        
-                      </div>
-                    </div>
-                  </List.Item>
-                )}
-              />
+                    编辑
+                  </Button>
+                ]}
+                onClick={() =>
+                  (async () => {
+                    const cid = note.categoryId ?? activeCategory
+                    if (ensureUnlocked && cid != null) {
+                      const ok = await ensureUnlocked(cid, '内容')
+                      if (!ok) return
+                    }
+                    onNavigate(null, {
+                      type: 'note',
+                      id: note.id,
+                      categoryId: note.categoryId,
+                      title: note.title
+                    })
+                  })()
+                }                    
+              >
+                <div style={{ flex: 1 }}>
+                  <div>
+                    <Typography.Text strong style={{cursor:"pointer"}}>{note.title}</Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 12,marginLeft:12 }}>
+                      创建: {dayjs(note.createdAt).format('YYYY-MM-DD HH:mm')}
+                      {' • '}
+                      更新: {dayjs(note.updatedAt).format('YYYY-MM-DD HH:mm')}
+                    </Typography.Text>
+                    
+                  </div>
+                </div>
+              </List.Item>
+            )}
+          />
             )}
           </div>
         </Card>

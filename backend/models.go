@@ -3,18 +3,20 @@ package backend
 import "time"
 
 type Category struct {
-	ID             uint      `json:"id" gorm:"primaryKey"`
-	Name           string    `json:"name" gorm:"size:100;not null"`
-	ColorPresetID  *uint     `json:"colorPresetId"`
-	ParentID       *uint     `json:"parentId"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
+	ID            uint         `json:"id" gorm:"primaryKey"`
+	Name          string       `json:"name" gorm:"size:100;not null"`
+	ColorPresetID *uint        `json:"colorPresetId"`
+	ColorPreset   *ColorPreset `json:"colorPreset" gorm:"foreignKey:ColorPresetID"`
+	ParentID      *uint        `json:"parentId"`
+	CreatedAt     time.Time    `json:"createdAt"`
+	UpdatedAt     time.Time    `json:"updatedAt"`
 }
 
 type ColorPreset struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`
 	Name      string    `json:"name" gorm:"size:100;not null"`
 	Hex       string    `json:"hex" gorm:"size:7;not null"`
+	Encrypted bool      `json:"encrypted" gorm:"default:false"` // 是否为加密颜色
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }

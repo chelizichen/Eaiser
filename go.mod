@@ -5,6 +5,7 @@ go 1.22.0
 toolchain go1.24.2
 
 require (
+	github.com/lox/go-touchid v0.0.0-20170712105233-619cc8e578d0
 	github.com/wailsapp/wails/v2 v2.11.0
 	gorm.io/driver/sqlite v1.5.6
 	gorm.io/gorm v1.25.7

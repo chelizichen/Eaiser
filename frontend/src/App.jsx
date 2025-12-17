@@ -64,6 +64,40 @@ export default function App() {
     })
   }
 
+  async function handleSelectCategory(catId) {
+    const cid = catId == null ? null : Number(catId)
+    if (cid === null || Number.isNaN(cid)) {
+      setActiveCategory(null)
+      setSelectedItem(null)
+      setCurrentView('category')
+      return
+    }
+    const target = categories.find(c => c.id === cid)
+    const isEncrypted = target?.colorPreset?.encrypted
+    if (isEncrypted) {
+      const ok = await ensureUnlocked(cid, '目录')
+      if (!ok) return
+    }
+    setActiveCategory(cid)
+    setSelectedItem(null)
+    setCurrentView('category')
+  }
+
+  async function ensureUnlocked(catId, targetLabel = '目录') {
+    const cid = catId == null ? null : Number(catId)
+    if (cid === null || Number.isNaN(cid)) return true
+    const target = categories.find(c => c.id === cid)
+    const isEncrypted = target?.colorPreset?.encrypted
+    if (!isEncrypted) return true
+    try {
+      await window.go.backend.App.RequireBiometric(`解锁加密${targetLabel}`)
+      return true
+    } catch (e) {
+      message.warning(`加密${targetLabel}未通过验证`)
+      return false
+    }
+  }
+
   function handleNavigate(view, item = null) {
     // 如果是从列表点击“编辑”进入
     if (item && item.type === 'note' && item.mode === 'edit') {
@@ -125,13 +159,13 @@ export default function App() {
       }}
     >
       <div className={isDarkMode ? 'theme-dark' : 'theme-light'} style={{ height: '100%' }}>
-        <Layout style={{ height: '100%' }}>
+      <Layout style={{ height: '100%' }}>
         {/* 顶部可拖动区域 */}
         <Sider width={280} theme={isDarkMode ? 'dark' : 'light'}>
           <CategorySidebar
             categories={categories}
             activeCategory={activeCategory}
-            onSelect={setActiveCategory}
+            onSelect={handleSelectCategory}
             onSelectItem={setSelectedItem}
             onChanged={refreshCategories}
           />
@@ -203,6 +237,8 @@ export default function App() {
               activeCategory={activeCategory} 
               onNavigate={handleNavigate}
               reloadToken={listVersion}
+              categories={categories}
+              ensureUnlocked={ensureUnlocked}
             />
           ) : currentView === 'notes' ? (
             <NotesTab 
@@ -217,7 +253,7 @@ export default function App() {
             />
           ) : null}
         </Content>
-        </Layout>
+      </Layout>
       </div>
     </ConfigProvider>
   )

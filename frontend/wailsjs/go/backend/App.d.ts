@@ -5,7 +5,7 @@ import {context} from '../models';
 
 export function CreateCategory(arg1:string,arg2:any,arg3:any):Promise<backend.Category>;
 
-export function CreateColorPreset(arg1:string,arg2:string):Promise<backend.ColorPreset>;
+export function CreateColorPreset(arg1:string,arg2:string,arg3:boolean):Promise<backend.ColorPreset>;
 
 export function CreateNote(arg1:string,arg2:string,arg3:string,arg4:string,arg5:number):Promise<backend.Note>;
 
@@ -27,11 +27,13 @@ export function ListNotes(arg1:any):Promise<Array<backend.Note>>;
 
 export function LogFrontend(arg1:string):Promise<void>;
 
+export function RequireBiometric(arg1:string):Promise<void>;
+
 export function SetTheme(arg1:boolean):Promise<void>;
 
 export function UpdateCategory(arg1:number,arg2:string,arg3:any,arg4:any):Promise<void>;
 
-export function UpdateColorPreset(arg1:number,arg2:string,arg3:string):Promise<void>;
+export function UpdateColorPreset(arg1:number,arg2:string,arg3:string,arg4:boolean):Promise<void>;
 
 export function UpdateNote(arg1:number,arg2:string,arg3:string,arg4:string,arg5:string,arg6:number):Promise<void>;
 
