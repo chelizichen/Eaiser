@@ -3,12 +3,16 @@ package backend
 import (
 	"context"
 	osruntime "runtime"
+	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type App struct {
-	ctx context.Context
+	ctx         context.Context
+	mu          sync.Mutex
+	lastBioAuth time.Time
 }
 
 func NewApp() *App { return &App{} }
@@ -45,5 +49,18 @@ func (a *App) RequireBiometric(reason string) error {
 	if osruntime.GOOS != "darwin" {
 		return nil
 	}
-	return requireBiometricAuth(reason)
+	a.mu.Lock()
+	if !a.lastBioAuth.IsZero() && time.Since(a.lastBioAuth) < 30*time.Minute {
+		a.mu.Unlock()
+		return nil
+	}
+	a.mu.Unlock()
+
+	err := requireBiometricAuth(reason)
+	if err == nil {
+		a.mu.Lock()
+		a.lastBioAuth = time.Now()
+		a.mu.Unlock()
+	}
+	return err
 }
