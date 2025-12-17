@@ -14,3 +14,13 @@ window.addEventListener('resize', () => {
 createRoot(document.getElementById('root')).render(<App />)
 
 
+// 添加全局异常捕获
+window.addEventListener('error', (event) => {
+  // 打印到后端
+  window.go.backend.App.LogFrontend(JSON.stringify({ event: 'error', error: event.error }))
+})
+
+window.addEventListener('unhandledrejection', (event) => {
+  // 打印到后端
+  window.go.backend.App.LogFrontend(JSON.stringify({ event: 'unhandledrejection', error: event.error }))
+})
