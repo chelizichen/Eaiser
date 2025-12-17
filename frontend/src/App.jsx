@@ -1,25 +1,38 @@
-import React, { useEffect, useState } from 'react'
-import { Layout, Button, message, ConfigProvider, Breadcrumb, Tooltip, theme } from 'antd'
-import { ArrowLeftOutlined, BulbOutlined, BulbFilled } from '@ant-design/icons'
+import React, { useEffect, useRef, useState } from 'react'
+import { Layout, Button, message, ConfigProvider, Breadcrumb, Tooltip, theme, Empty } from 'antd'
+import { ArrowLeftOutlined, BulbOutlined, BulbFilled, ColumnWidthOutlined, CloseOutlined } from '@ant-design/icons'
 import CategorySidebar from './components/CategorySidebar.jsx'
 import ContentViewer from './components/ContentViewer.jsx'
 import CategoryView from './components/CategoryView.jsx'
 import NotesTab from './components/NotesTab.jsx'
 
 const { Sider, Content } = Layout
+const MIN_PANE_RATIO = 0.2
 
 export default function App() {
-  const [activeCategory, setActiveCategory] = useState(null)
   const [categories, setCategories] = useState([])
-  const [selectedItem, setSelectedItem] = useState(null) // { type: 'note', id: number }
-  const [currentView, setCurrentView] = useState('category') // 'category' | 'notes'
   const [listVersion, setListVersion] = useState(0) // 用于刷新 CategoryView 列表
-  const [editingNote, setEditingNote] = useState(null) // 当前正在编辑的笔记
   const [isDarkMode, setIsDarkMode] = useState(() => {
     // 从 localStorage 读取主题设置，默认为亮色
     const saved = localStorage.getItem('theme')
     return saved === 'dark'
   })
+  const [panes, setPanes] = useState(() => [
+    {
+      id: 'pane-1',
+      activeCategory: null,
+      selectedItem: null,
+      currentView: 'category', // 'category' | 'notes' | 'blank'
+      editingNote: null,
+    },
+  ])
+  const [paneWidths, setPaneWidths] = useState([1])
+  const [activePaneId, setActivePaneId] = useState('pane-1')
+  const [dragging, setDragging] = useState(null)
+  const containerRef = useRef(null)
+
+  const activePane = panes.find(p => p.id === activePaneId) || panes[0]
+  const sidebarActiveCategory = activePane?.activeCategory ?? null
 
   async function refreshCategories() {
     try {
@@ -32,10 +45,11 @@ export default function App() {
 
   useEffect(() => { refreshCategories() }, [])
 
-  useEffect(() => { 
-    setSelectedItem(null)
-    setCurrentView('category') // 切换目录时回到目录视图
-  }, [activeCategory])
+  useEffect(() => {
+    if (panes.length && !panes.find(p => p.id === activePaneId)) {
+      setActivePaneId(panes[0].id)
+    }
+  }, [panes, activePaneId])
 
   // 监听菜单栏的刷新事件
   useEffect(() => {
@@ -51,6 +65,10 @@ export default function App() {
     }
   }, [])
 
+  function focusPane(paneId) {
+    setActivePaneId(paneId)
+  }
+
   // 切换主题并保存到 localStorage
   function toggleTheme() {
     setIsDarkMode(prev => {
@@ -64,12 +82,26 @@ export default function App() {
     })
   }
 
+  function updatePaneState(paneId, updater) {
+    setPanes(prev =>
+      prev.map(p => {
+        if (p.id !== paneId) return p
+        const patch = typeof updater === 'function' ? updater(p) : updater
+        return { ...p, ...patch }
+      })
+    )
+  }
+
   async function handleSelectCategory(catId) {
+    const paneId = activePaneId
     const cid = catId == null ? null : Number(catId)
     if (cid === null || Number.isNaN(cid)) {
-      setActiveCategory(null)
-      setSelectedItem(null)
-      setCurrentView('category')
+      updatePaneState(paneId, {
+        activeCategory: null,
+        selectedItem: null,
+        currentView: 'category',
+        editingNote: null,
+      })
       return
     }
     const target = categories.find(c => c.id === cid)
@@ -78,9 +110,12 @@ export default function App() {
       const ok = await ensureUnlocked(cid, '目录')
       if (!ok) return
     }
-    setActiveCategory(cid)
-    setSelectedItem(null)
-    setCurrentView('category')
+    updatePaneState(paneId, {
+      activeCategory: cid,
+      selectedItem: null,
+      currentView: 'category',
+      editingNote: null,
+    })
   }
 
   async function ensureUnlocked(catId, targetLabel = '目录') {
@@ -98,37 +133,69 @@ export default function App() {
     }
   }
 
-  function handleNavigate(view, item = null) {
-    // 如果是从列表点击“编辑”进入
-    if (item && item.type === 'note' && item.mode === 'edit') {
-      setEditingNote(item)
-      setSelectedItem(null)
-      setCurrentView('notes')
-      return
-    }
-
-    if (view) {
-      setCurrentView(view)
-      // 进入某个视图时，清空当前查看项与编辑状态
-      if (view !== 'notes') {
-        setEditingNote(null)
-      }
-      if (view !== 'category') {
-        setSelectedItem(null)
-      }
-    }
-
-    if (item) {
-      setSelectedItem(item)
-      // 如果选中了项目，根据类型设置对应的视图（用于面包屑显示）
-      if (item.type === 'note') {
-        setCurrentView('notes')
-      }
-    }
+  async function handleSelectItem(item) {
+    if (!item) return
+    const paneId = activePaneId
+    const pane = panes.find(p => p.id === paneId)
+    const cid = item.categoryId ?? pane?.activeCategory ?? null
+    const ok = await ensureUnlocked(cid, '内容')
+    if (!ok) return
+    focusPane(paneId)
+    updatePaneState(paneId, {
+      selectedItem: item,
+      currentView: item.type === 'note' ? 'category' : 'category',
+      editingNote: null,
+      activeCategory: cid,
+    })
   }
 
-  function currentPath() {
-    const targetId = selectedItem && selectedItem.categoryId ? selectedItem.categoryId : activeCategory
+  function handleNavigate(paneId, view, item = null) {
+    focusPane(paneId)
+    setPanes(prev =>
+      prev.map(p => {
+        if (p.id !== paneId) return p
+        const next = { ...p }
+        if (item && item.type === 'note' && item.mode === 'edit') {
+          next.editingNote = item
+          next.selectedItem = null
+          next.currentView = 'notes'
+          next.activeCategory = item.categoryId ?? next.activeCategory
+          return next
+        }
+        if (view) {
+          next.currentView = view
+          if (view !== 'notes') next.editingNote = null
+          if (view !== 'category') next.selectedItem = null
+        }
+        if (item) {
+          next.selectedItem = item
+          if (item.type === 'note') {
+            next.currentView = 'category'
+          }
+          next.activeCategory = item.categoryId ?? next.activeCategory
+        }
+        return next
+      })
+    )
+  }
+
+  function handleNoteSaved(paneId) {
+    message.success('保存成功')
+    setListVersion(v => v + 1)
+    setPanes(prev =>
+      prev.map(p =>
+        p.id === paneId
+          ? { ...p, currentView: 'category', selectedItem: null, editingNote: null }
+          : p
+      )
+    )
+  }
+
+  function currentPath(targetPane) {
+    const targetId =
+      targetPane?.selectedItem && targetPane.selectedItem.categoryId
+        ? targetPane.selectedItem.categoryId
+        : targetPane?.activeCategory
     if (!targetId) return []
     const map = new Map()
     categories.forEach(c => map.set(c.id, c))
@@ -140,6 +207,102 @@ export default function App() {
     }
     return path
   }
+
+  function splitPane(paneId) {
+    setPanes(prev => {
+      const idx = prev.findIndex(p => p.id === paneId)
+      if (idx === -1) return prev
+      const newId = `pane-${Date.now()}`
+      const nextPane = {
+        id: newId,
+        activeCategory: null,
+        selectedItem: null,
+        currentView: 'blank',
+        editingNote: null,
+      }
+      const next = [...prev.slice(0, idx + 1), nextPane, ...prev.slice(idx + 1)]
+      setActivePaneId(newId)
+      return next
+    })
+    setPaneWidths(prev => {
+      const idx = panes.findIndex(p => p.id === paneId)
+      const base = prev[idx] ?? 1
+      const left = Math.max(base / 2, MIN_PANE_RATIO)
+      const right = Math.max(base - left, MIN_PANE_RATIO)
+      const next = [...prev.slice(0, idx), left, right, ...prev.slice(idx + 1)]
+      const total = next.reduce((a, b) => a + b, 0)
+      return next.map(w => w / total)
+    })
+  }
+
+  function closePane(paneId) {
+    if (panes.length <= 1) return
+    setPanes(prev => {
+      const idx = prev.findIndex(p => p.id === paneId)
+      if (idx === -1) return prev
+      const next = prev.filter(p => p.id !== paneId)
+      const nextActive = prev[idx + 1]?.id || prev[idx - 1]?.id || next[0]?.id
+      setActivePaneId(nextActive || (next[0]?.id ?? 'pane-1'))
+      return next
+    })
+    setPaneWidths(prev => {
+      const idx = panes.findIndex(p => p.id === paneId)
+      if (idx === -1) return prev
+      const next = prev.filter((_, i) => i !== idx)
+      if (!next.length) return [1]
+      const total = next.reduce((a, b) => a + b, 0)
+      return next.map(w => w / total)
+    })
+  }
+
+  function startResize(index, event) {
+    event.preventDefault()
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect || rect.width <= 0) return
+    setDragging({
+      index,
+      startX: event.clientX,
+      baseWidths: [...paneWidths],
+      containerWidth: rect.width,
+    })
+  }
+
+  useEffect(() => {
+    function handleMouseMove(e) {
+      if (!dragging) return
+      const { index, startX, baseWidths, containerWidth } = dragging
+      const deltaPx = e.clientX - startX
+      const totalBase = baseWidths.reduce((a, b) => a + b, 0)
+      const deltaRatio = (deltaPx / containerWidth) * totalBase
+      const leftBase = baseWidths[index]
+      const rightBase = baseWidths[index + 1]
+      const pairSum = leftBase + rightBase
+      let left = leftBase + deltaRatio
+      const min = MIN_PANE_RATIO
+      left = Math.max(min, Math.min(pairSum - min, left))
+      const right = pairSum - left
+      const next = [...baseWidths]
+      next[index] = left
+      next[index + 1] = right
+      const total = next.reduce((a, b) => a + b, 0)
+      setPaneWidths(next.map(w => w / total))
+    }
+    function handleMouseUp() {
+      if (dragging) setDragging(null)
+    }
+    if (dragging) {
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [dragging])
+
+  const canClosePane = panes.length > 1
+  const headerPath = currentPath(activePane)
+  const headerSelectedItem = activePane?.selectedItem
 
   return (
     <ConfigProvider
@@ -164,24 +327,24 @@ export default function App() {
         <Sider width={280} theme={isDarkMode ? 'dark' : 'light'}>
           <CategorySidebar
             categories={categories}
-            activeCategory={activeCategory}
+            activeCategory={sidebarActiveCategory}
             onSelect={handleSelectCategory}
-            onSelectItem={setSelectedItem}
+            onSelectItem={handleSelectItem}
             onChanged={refreshCategories}
           />
         </Sider>
         <Content style={{ padding: 16, paddingTop: 0 }}>
           <div style={{ height:36, width: '100%', '--wails-draggable':'drag', cursor:'grab', display:'flex', alignItems:'center', justifyContent:'center' }}></div>
           <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
-            {(currentView !== 'category' || selectedItem) && (
+            {(activePane?.currentView !== 'category' || headerSelectedItem) && (
               <Button 
                 icon={<ArrowLeftOutlined />} 
                 onClick={() => {
-                  if (selectedItem) {
-                    setSelectedItem(null)
-                    setCurrentView('category')
+                  if (headerSelectedItem) {
+                    updatePaneState(activePaneId, { selectedItem: null })
+                    focusPane(activePaneId)
                   } else {
-                    handleNavigate('category')
+                    handleNavigate(activePaneId, 'category')
                   }
                 }}
                 >
@@ -189,17 +352,17 @@ export default function App() {
               </Button>
             )}
             <Breadcrumb style={{ flex: 1 }}>
-              {currentPath().length === 0 ? (
+              {headerPath.length === 0 ? (
                 <Breadcrumb.Item>全部</Breadcrumb.Item>
               ) : (
                 <>
-                  {currentPath().map(seg => (
+                  {headerPath.map(seg => (
                     <Breadcrumb.Item key={seg.id}>{seg.name}</Breadcrumb.Item>
                   ))}
-                  {selectedItem && (
+                  {headerSelectedItem && (
                     <Breadcrumb.Item>
-                      <Tooltip title={selectedItem.title}>
-                        <span>{selectedItem.title}</span>
+                      <Tooltip title={headerSelectedItem.title}>
+                        <span>{headerSelectedItem.title}</span>
                       </Tooltip>
                     </Breadcrumb.Item>
                   )}
@@ -214,44 +377,107 @@ export default function App() {
               />
             </Tooltip>
           </div>
-          
-          {selectedItem ? (
-            <ContentViewer 
-              item={selectedItem} 
-              onEdit={({ item: it, data }) => {
-                const targetId = it?.id || data?.id
-                const targetCategory = it?.categoryId || data?.categoryId
-                const targetTitle = data?.title || it?.title
-                if (!targetId) return
-                handleNavigate('notes', {
-                  type: 'note',
-                  id: targetId,
-                  categoryId: targetCategory,
-                  title: targetTitle,
-                  mode: 'edit'
-                })
-              }}
-            />
-          ) : currentView === 'category' ? (
-            <CategoryView 
-              activeCategory={activeCategory} 
-              onNavigate={handleNavigate}
-              reloadToken={listVersion}
-              categories={categories}
-              ensureUnlocked={ensureUnlocked}
-            />
-          ) : currentView === 'notes' ? (
-            <NotesTab 
-              activeCategory={activeCategory} 
-              editingNote={editingNote}
-              onSaved={() => {
-                message.success('保存成功')
-                setListVersion(v => v + 1)
-                setEditingNote(null)
-                handleNavigate('category')
-              }} 
-            />
-          ) : null}
+
+          <div className="pane-container" ref={containerRef}>
+            {panes.map((pane, idx) => {
+              const isActive = pane.id === activePaneId && panes.length > 1
+              const paneContent = (() => {
+                if (pane.selectedItem) {
+                  return (
+                    <ContentViewer
+                      item={pane.selectedItem}
+                      onEdit={({ item: it, data }) => {
+                        const targetId = it?.id || data?.id
+                        const targetCategory = it?.categoryId || data?.categoryId
+                        const targetTitle = data?.title || it?.title
+                        if (!targetId) return
+                        handleNavigate(pane.id, 'notes', {
+                          type: 'note',
+                          id: targetId,
+                          categoryId: targetCategory,
+                          title: targetTitle,
+                          mode: 'edit',
+                        })
+                      }}
+                      onSplitPane={() => splitPane(pane.id)}
+                      onClosePane={() => closePane(pane.id)}
+                      canClose={canClosePane}
+                      isActive={isActive}
+                    />
+                  )
+                }
+                if (pane.currentView === 'notes') {
+                  return (
+                    <NotesTab
+                      activeCategory={pane.activeCategory}
+                      editingNote={pane.editingNote}
+                      onSaved={() => handleNoteSaved(pane.id)}
+                      onSplitPane={() => splitPane(pane.id)}
+                      onClosePane={() => closePane(pane.id)}
+                      canClose={canClosePane}
+                    />
+                  )
+                }
+                if (pane.currentView === 'category') {
+                  if (pane.activeCategory == null && panes.length > 1 && listVersion >= 0) {
+                    return <Empty description="请选择左侧目录或文件以在此面板展示" />
+                  }
+                  return (
+                    <CategoryView
+                      activeCategory={pane.activeCategory}
+                      onNavigate={(view, item) => handleNavigate(pane.id, view, item)}
+                      reloadToken={listVersion}
+                      categories={categories}
+                      ensureUnlocked={ensureUnlocked}
+                    />
+                  )
+                }
+                return <Empty description="请选择左侧目录或文件以在此面板展示" />
+              })()
+
+              return (
+                <React.Fragment key={pane.id}>
+                  <div
+                    className={`pane-shell ${isActive ? 'pane-shell-active' : ''}`}
+                    style={{ flex: paneWidths[idx] ?? 1 }}
+                    onClick={() => focusPane(pane.id)}
+                  >
+                    <div className="pane-inner">
+                      {((pane.currentView === 'category' && !pane.selectedItem) || pane.currentView === 'blank') && (
+                        <div className="pane-header-actions">
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<ColumnWidthOutlined />}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                splitPane(pane.id)
+                              }}
+                            />
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<CloseOutlined />}
+                              disabled={!canClosePane}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                closePane(pane.id)
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      <div className="pane-content">{paneContent}</div>
+                    </div>
+                  </div>
+                  {idx < panes.length - 1 && (
+                    <div className="pane-divider" onMouseDown={(e) => startResize(idx, e)} />
+                  )}
+                </React.Fragment>
+              )
+            })}
+          </div>
         </Content>
       </Layout>
       </div>

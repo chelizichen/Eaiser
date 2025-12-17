@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Button, Input } from 'antd'
+import { ColumnWidthOutlined, CloseOutlined } from '@ant-design/icons'
 import MarkdownEditor from './MarkdownEditor.jsx'
 
-export default function NotesTab({ activeCategory, onSaved, editingNote }) {
+export default function NotesTab({ activeCategory, onSaved, editingNote, onSplitPane, onClosePane, canClose = true }) {
   const [title, setTitle] = useState('')
   const [markdown, setMarkdown] = useState('')
   const [copyMarkdown, setCopyMarkdown] = useState('')
@@ -50,6 +51,23 @@ export default function NotesTab({ activeCategory, onSaved, editingNote }) {
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
+      <div className="pane-actions-inline">
+        <Button
+          type="text"
+          size="small"
+          icon={<ColumnWidthOutlined />}
+          onClick={onSplitPane}
+          title="分屏"
+        />
+        <Button
+          type="text"
+          size="small"
+          icon={<CloseOutlined />}
+          onClick={onClosePane}
+          disabled={!canClose}
+          title="关闭面板"
+        />
+      </div>
       <div className="editor-page">
         <Input 
           placeholder="标题" 
