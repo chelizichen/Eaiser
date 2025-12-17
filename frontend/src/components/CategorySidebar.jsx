@@ -145,6 +145,7 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
         const children = parent.children
         // Notes
         entry.notes.forEach(n => {
+          if (n.categoryId !== c.id) return
           children.push({
             key: `note-${n.id}`,
             title: (

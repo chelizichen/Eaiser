@@ -15,6 +15,11 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
     [categories, activeCategory]
   )
   const isEncrypted = activeCat?.colorPreset?.encrypted
+  const categoryMap = useMemo(() => {
+    const map = new Map()
+    ;(categories || []).forEach(c => map.set(c.id, c.name))
+    return map
+  }, [categories])
 
   async function loadAll() {
     setLoading(true)
@@ -149,6 +154,9 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
                         <Typography.Text strong style={{ fontSize: 16, display: 'block', marginBottom: 8,color: bgUrl ? 'rgba(255,255,255,0.85)' : undefined }}>
                           {note.title}
                         </Typography.Text>
+                        <Typography.Text style={{ fontSize: 12, display: 'block', color: bgUrl ? 'rgba(255,255,255,0.75)' : undefined }}>
+                          归属目录: {categoryMap.get(note.categoryId) || '未知目录'}
+                        </Typography.Text>
                         <Typography.Text style={{ fontSize: 12, display: 'block', color: bgUrl ? 'rgba(255,255,255,0.85)' : undefined }}>
                           创建: {dayjs(note.createdAt).format('YYYY-MM-DD HH:mm')}
                         </Typography.Text>
@@ -219,6 +227,9 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
                 <div style={{ flex: 1 }}>
                   <div>
                     <Typography.Text strong style={{cursor:"pointer"}}>{note.title}</Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 12,marginLeft:12 }}>
+                      归属目录: {categoryMap.get(note.categoryId) || '未知目录'}
+                    </Typography.Text>
                     <Typography.Text type="secondary" style={{ fontSize: 12,marginLeft:12 }}>
                       创建: {dayjs(note.createdAt).format('YYYY-MM-DD HH:mm')}
                       {' • '}

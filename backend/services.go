@@ -71,7 +71,35 @@ func (a *App) ListNotes(categoryID *uint) ([]Note, error) {
 	q := DB.Order("updated_at desc")
 	q = q.Where("content_md <> ''")
 	if categoryID != nil {
-		q = q.Where("category_id = ?", *categoryID)
+		// 查询包含子目录的所有分类 ID
+		var cats []Category
+		if err := DB.Find(&cats).Error; err == nil {
+			idSet := map[uint]struct{}{}
+			var collect func(uint)
+			collect = func(target uint) {
+				if _, ok := idSet[target]; ok {
+					return
+				}
+				idSet[target] = struct{}{}
+				for _, c := range cats {
+					if c.ParentID != nil && *c.ParentID == target {
+						collect(c.ID)
+					}
+				}
+			}
+			collect(*categoryID)
+			var ids []uint
+			for id := range idSet {
+				ids = append(ids, id)
+			}
+			if len(ids) > 0 {
+				q = q.Where("category_id IN ?", ids)
+			} else {
+				q = q.Where("category_id = ?", *categoryID)
+			}
+		} else {
+			q = q.Where("category_id = ?", *categoryID)
+		}
 	}
 	err := q.Find(&list).Error
 	return list, err
