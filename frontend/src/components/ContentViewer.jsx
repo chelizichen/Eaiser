@@ -63,27 +63,5 @@ export default function ContentViewer({ item }) {
       </div>
     )
   }
-  if (item.type === 'image' && item.id) {
-    const raw = data.markdown || ''
-    const isHTML = raw.trim().startsWith('<')
-    const html = isHTML ? raw : renderMarkdown(raw)
-    return (
-      <div style={{ display: 'grid', gap: 12, overflow:'auto', height:'90vh' }}>
-        <Typography.Title level={4}>{data.title || data.path}</Typography.Title>
-        <div className="viewer-content" dangerouslySetInnerHTML={{ __html: html }} />
-      </div>
-    )
-  }
-  if (item.type === 'blender'  && item.id) {
-    return (
-      <div style={{ display: 'grid', gap: 12, overflow:'auto', height:'90vh' }}>
-        <Typography.Title level={4}>{data.name}</Typography.Title>
-        <Typography.Paragraph>{data.path}</Typography.Paragraph>
-        <div className="toolbar">
-          <Button type="primary" onClick={() => window.go.backend.App.OpenBlenderFile(data.id)}>打开文件</Button>
-        </div>
-      </div>
-    )
-  }
   return null
 }
