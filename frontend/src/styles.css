@@ -103,6 +103,11 @@ html, body, #root { height: 100vh;overflow: hidden; }
   border-radius: 8px;
 }
 
+/* Quill 编辑器代码块样式（暗色模式） */
+.theme-dark .ql-syntax {
+  background: #494b42 !important;
+}
+
 /* 深色主题整体背景与面板样式（VSCode 风格） */
 .theme-dark {
   background: #1e1e1e;
