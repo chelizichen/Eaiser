@@ -28,6 +28,8 @@ type Note struct {
 	Snippet    string    `json:"snippet" gorm:"type:text"`
 	Analysis   string    `json:"analysis" gorm:"type:text"`
 	ContentMD  string    `json:"contentMd" gorm:"type:longtext"`
+	Type       uint      `json:"type" gorm:"default:0"`    // 0: 正常笔记, 1: PDF
+	FilePath   string    `json:"filePath" gorm:"size:500"` // PDF 文件路径
 	CategoryID uint      `json:"categoryId"`
 	CreatedAt  time.Time `json:"createdAt"`
 	UpdatedAt  time.Time `json:"updatedAt"`

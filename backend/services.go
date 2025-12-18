@@ -1,6 +1,15 @@
 package backend
 
-import "log"
+import (
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+)
 
 func (a *App) CreateColorPreset(name string, hex string, encrypted bool) (*ColorPreset, error) {
 	p := &ColorPreset{Name: name, Hex: hex, Encrypted: encrypted}
@@ -69,7 +78,7 @@ func (a *App) ListNotes(categoryID *uint) ([]Note, error) {
 		log.Printf("ListNotes categoryID=<nil>")
 	}
 	q := DB.Order("updated_at desc")
-	q = q.Where("content_md <> ''")
+	q = q.Where("(content_md <> '' OR type = 1)")
 	if categoryID != nil {
 		// 查询包含子目录的所有分类 ID
 		var cats []Category
@@ -132,6 +141,95 @@ func (a *App) UpdateNoteMD(id uint, title string, language string, contentMD str
 
 func (a *App) DeleteNote(id uint) error {
 	return DB.Delete(&Note{}, id).Error
+}
+
+// ImportPDF 导入 PDF 文件
+// fileDataBase64: base64 编码的文件数据
+func (a *App) ImportPDF(fileDataBase64 string, fileName string, categoryID uint) (*Note, error) {
+	// 解码 base64 数据
+	fileData, err := base64.StdEncoding.DecodeString(fileDataBase64)
+	if err != nil {
+		log.Printf("Failed to decode base64 PDF data: %v\n", err)
+		return nil, fmt.Errorf("解码 PDF 数据失败: %v", err)
+	}
+
+	// 生成唯一文件名
+	timestamp := time.Now().Unix()
+	ext := filepath.Ext(fileName)
+	nameWithoutExt := strings.TrimSuffix(fileName, ext)
+	safeName := strings.ReplaceAll(nameWithoutExt, " ", "_")
+	safeName = strings.ReplaceAll(safeName, "/", "_")
+	safeName = strings.ReplaceAll(safeName, "\\", "_")
+	uniqueFileName := fmt.Sprintf("%d_%s%s", timestamp, safeName, ext)
+
+	// 保存文件到 PDF 存储目录
+	relativePath := uniqueFileName
+	fullPath := GetPDFFullPath(relativePath)
+
+	if err := os.WriteFile(fullPath, fileData, 0644); err != nil {
+		log.Printf("Failed to save PDF file: %v\n", err)
+		return nil, fmt.Errorf("保存 PDF 文件失败: %v", err)
+	}
+
+	// 创建 Note 记录
+	note := &Note{
+		Title:      nameWithoutExt,
+		Type:       1, // PDF 类型
+		FilePath:   relativePath,
+		CategoryID: categoryID,
+	}
+
+	if err := DB.Create(note).Error; err != nil {
+		// 如果创建失败，删除已保存的文件
+		os.Remove(fullPath)
+		log.Printf("Failed to create PDF note: %v\n", err)
+		return nil, fmt.Errorf("创建 PDF 记录失败: %v", err)
+	}
+
+	log.Printf("PDF imported successfully: %s (ID: %d)\n", fileName, note.ID)
+	return note, nil
+}
+
+// GetPDFPath 获取 PDF 文件的完整路径
+func (a *App) GetPDFPath(noteID uint) (string, error) {
+	var note Note
+	if err := DB.First(&note, noteID).Error; err != nil {
+		return "", fmt.Errorf("笔记不存在: %v", err)
+	}
+
+	if note.Type != 1 {
+		return "", errors.New("该笔记不是 PDF 类型")
+	}
+
+	if note.FilePath == "" {
+		return "", errors.New("PDF 文件路径为空")
+	}
+
+	fullPath := GetPDFFullPath(note.FilePath)
+
+	// 验证文件是否存在
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		return "", fmt.Errorf("PDF 文件不存在: %s", fullPath)
+	}
+
+	return fullPath, nil
+}
+
+// GetPDFContent 获取 PDF 文件的 base64 编码内容
+func (a *App) GetPDFContent(noteID uint) (string, error) {
+	fullPath, err := a.GetPDFPath(noteID)
+	if err != nil {
+		return "", err
+	}
+
+	fileData, err := os.ReadFile(fullPath)
+	if err != nil {
+		log.Printf("Failed to read PDF file: %v\n", err)
+		return "", fmt.Errorf("读取 PDF 文件失败: %v", err)
+	}
+
+	base64Data := base64.StdEncoding.EncodeToString(fileData)
+	return base64Data, nil
 }
 
 // LogFrontend prints frontend logs to backend stdout for easy debugging

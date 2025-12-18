@@ -14,8 +14,8 @@ var DB *gorm.DB
 
 func InitDB() {
 	exe, _ := os.Executable()
-    dir := filepath.Dir(exe)
-    dbPath := filepath.Join(dir, Cfg.DB_PATH)
+	dir := filepath.Dir(exe)
+	dbPath := filepath.Join(dir, Cfg.DB_PATH)
 	cfg := &gorm.Config{Logger: logger.Default.LogMode(logger.Warn)}
 	db, err := gorm.Open(sqlite.Open(dbPath), cfg)
 	if err != nil {
@@ -27,6 +27,7 @@ func InitDB() {
 
 func AutoMigrate() {
 	DB.AutoMigrate(&Category{}, &ColorPreset{}, &Note{})
+	InitPDFStorage()
 }
 
 func CloseDB() {

@@ -114,7 +114,7 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
               />
             ) : (
               <div
-                style={{ flex: 1, color: colorHex, cursor: 'text',cursor:'pointer' }}
+                style={{ flex: 1, color: colorHex, cursor: 'pointer' }}
                 onDoubleClick={(e) => { e.stopPropagation(); startEdit(c) }}
               >
                 {c.name}

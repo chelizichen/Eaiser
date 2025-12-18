@@ -19,6 +19,12 @@ export function DeleteNote(arg1:number):Promise<void>;
 
 export function GetContext():Promise<context.Context>;
 
+export function GetPDFContent(arg1:number):Promise<string>;
+
+export function GetPDFPath(arg1:number):Promise<string>;
+
+export function ImportPDF(arg1:string,arg2:string,arg3:number):Promise<backend.Note>;
+
 export function ListCategories():Promise<Array<backend.Category>>;
 
 export function ListColorPresets():Promise<Array<backend.ColorPreset>>;

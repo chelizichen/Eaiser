@@ -94,6 +94,8 @@ export namespace backend {
 	    snippet: string;
 	    analysis: string;
 	    contentMd: string;
+	    type: number;
+	    filePath: string;
 	    categoryId: number;
 	    // Go type: time
 	    createdAt: any;
@@ -112,6 +114,8 @@ export namespace backend {
 	        this.snippet = source["snippet"];
 	        this.analysis = source["analysis"];
 	        this.contentMd = source["contentMd"];
+	        this.type = source["type"];
+	        this.filePath = source["filePath"];
 	        this.categoryId = source["categoryId"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);

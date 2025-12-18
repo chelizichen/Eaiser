@@ -34,6 +34,18 @@ export function GetContext() {
   return window['go']['backend']['App']['GetContext']();
 }
 
+export function GetPDFContent(arg1) {
+  return window['go']['backend']['App']['GetPDFContent'](arg1);
+}
+
+export function GetPDFPath(arg1) {
+  return window['go']['backend']['App']['GetPDFPath'](arg1);
+}
+
+export function ImportPDF(arg1, arg2, arg3) {
+  return window['go']['backend']['App']['ImportPDF'](arg1, arg2, arg3);
+}
+
 export function ListCategories() {
   return window['go']['backend']['App']['ListCategories']();
 }
