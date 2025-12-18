@@ -138,7 +138,10 @@ export default function App() {
   async function handleSelectItem(item) {
     if (!item) return
     const paneId = activePaneId
+    console.log('handleSelectItem.item', item)
+    console.log('handleSelectItem.paneId', paneId)
     const pane = panes.find(p => p.id === paneId)
+    console.log('handleSelectItem.pane', pane)
     const cid = item.categoryId ?? pane?.activeCategory ?? null
     const ok = await ensureUnlocked(cid, '内容')
     if (!ok) return
@@ -439,7 +442,7 @@ export default function App() {
                               break
                             }
                           }
-                          
+                          console.log('targetElement', targetElement)
                           if (targetElement) {
                             // 高亮
                             const originalBg = targetElement.style.backgroundColor
@@ -452,12 +455,8 @@ export default function App() {
                                 targetElement.style.transition = originalTransition
                               }, 300)
                             }, 1500)
-                            
-                            // 将焦点切换到包含该内容的 pane
-                            let paneElement = targetElement.closest('.pane-shell')
-                            if (paneElement) {
-                              paneElement.click()
-                            }
+                            targetElement.click();
+                            targetElement.scrollIntoView({ behavior: 'smooth',block:'start' });
                           } else {
                             // 回退到原始回调
                             if (onHeadingClick) {

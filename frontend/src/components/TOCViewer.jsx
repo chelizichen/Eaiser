@@ -73,6 +73,7 @@ export default function TOCViewer({ headings = [], onHeadingClick }) {
     try {
       if (selectedKeys.length > 0 && onHeadingClick) {
         const nodeId = selectedKeys[0]
+        console.log('handleSelect.nodeId', nodeId)
         onHeadingClick(nodeId)
       }
     } catch (e) {
