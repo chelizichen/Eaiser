@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import { Button, Typography } from 'antd'
 import { LeftOutlined, RightOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
@@ -12,12 +12,52 @@ if (typeof window !== 'undefined') {
   pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 }
 
-export default function PDFViewer({ filePath, title }) {
+export default function PDFViewer({ filePath, title, noteId }) {
   const [numPages, setNumPages] = useState(null)
   const [pageNumber, setPageNumber] = useState(1)
   const [scale, setScale] = useState(1.0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const savePageTimeoutRef = useRef(null)
+
+  // 加载时从后端读取保存的页码（只在组件挂载时执行一次）
+  useEffect(() => {
+    if (noteId && window.go?.backend?.App) {
+      // 获取笔记数据，读取保存的页码
+      window.go.backend.App.ListNotes(null).then((notes) => {
+        const note = notes.find(n => n.id === noteId)
+        if (note && note.pdfPage && note.pdfPage > 0) {
+          setPageNumber(note.pdfPage)
+        }
+      }).catch((err) => {
+        console.error('Failed to load PDF page:', err)
+      })
+    }
+  }, [noteId])
+
+  // 保存页码到后端（防抖处理，避免频繁保存）
+  useEffect(() => {
+    // 只有在 PDF 加载完成且页码有效时才保存
+    if (noteId && pageNumber > 0 && numPages && pageNumber <= numPages && window.go?.backend?.App?.UpdatePDFPage) {
+      // 清除之前的定时器
+      if (savePageTimeoutRef.current) {
+        clearTimeout(savePageTimeoutRef.current)
+      }
+      
+      // 延迟保存，避免频繁请求
+      savePageTimeoutRef.current = setTimeout(() => {
+        window.go.backend.App.UpdatePDFPage(noteId, pageNumber).catch((err) => {
+          console.error('Failed to save PDF page:', err)
+        })
+      }, 500) // 500ms 防抖
+    }
+    
+    return () => {
+      if (savePageTimeoutRef.current) {
+        clearTimeout(savePageTimeoutRef.current)
+      }
+    }
+  }, [noteId, pageNumber, numPages])
 
   function onDocumentLoadSuccess({ numPages }) {
     setNumPages(numPages)

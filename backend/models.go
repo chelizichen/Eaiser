@@ -30,6 +30,7 @@ type Note struct {
 	ContentMD  string    `json:"contentMd" gorm:"type:longtext"`
 	Type       uint      `json:"type" gorm:"default:0"`    // 0: 正常笔记, 1: PDF
 	FilePath   string    `json:"filePath" gorm:"size:500"` // PDF 文件路径
+	PDFPage    uint      `json:"pdfPage" gorm:"default:1"` // PDF 当前页码
 	CategoryID uint      `json:"categoryId"`
 	CreatedAt  time.Time `json:"createdAt"`
 	UpdatedAt  time.Time `json:"updatedAt"`

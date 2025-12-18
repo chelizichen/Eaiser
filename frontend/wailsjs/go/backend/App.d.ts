@@ -44,3 +44,5 @@ export function UpdateColorPreset(arg1:number,arg2:string,arg3:string,arg4:boole
 export function UpdateNote(arg1:number,arg2:string,arg3:string,arg4:string,arg5:string,arg6:number):Promise<void>;
 
 export function UpdateNoteMD(arg1:number,arg2:string,arg3:string,arg4:string,arg5:number):Promise<void>;
+
+export function UpdatePDFPage(arg1:number,arg2:number):Promise<void>;

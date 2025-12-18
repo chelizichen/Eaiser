@@ -96,6 +96,7 @@ export namespace backend {
 	    contentMd: string;
 	    type: number;
 	    filePath: string;
+	    pdfPage: number;
 	    categoryId: number;
 	    // Go type: time
 	    createdAt: any;
@@ -116,6 +117,7 @@ export namespace backend {
 	        this.contentMd = source["contentMd"];
 	        this.type = source["type"];
 	        this.filePath = source["filePath"];
+	        this.pdfPage = source["pdfPage"];
 	        this.categoryId = source["categoryId"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);

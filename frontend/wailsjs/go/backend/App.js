@@ -85,3 +85,7 @@ export function UpdateNote(arg1, arg2, arg3, arg4, arg5, arg6) {
 export function UpdateNoteMD(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['backend']['App']['UpdateNoteMD'](arg1, arg2, arg3, arg4, arg5);
 }
+
+export function UpdatePDFPage(arg1, arg2) {
+  return window['go']['backend']['App']['UpdatePDFPage'](arg1, arg2);
+}

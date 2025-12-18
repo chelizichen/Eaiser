@@ -278,7 +278,7 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
           </div>
           <ErrorBoundary>
             {pdfPath ? (
-              <PDFViewer filePath={pdfPath} title={data.title} />
+              <PDFViewer filePath={pdfPath} title={data.title} noteId={data.id} />
             ) : (
               <div style={{ padding: 40, textAlign: 'center' }}>
                 <Typography.Text>加载 PDF 路径中...</Typography.Text>

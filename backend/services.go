@@ -232,6 +232,20 @@ func (a *App) GetPDFContent(noteID uint) (string, error) {
 	return base64Data, nil
 }
 
+// UpdatePDFPage 更新 PDF 的当前页码
+func (a *App) UpdatePDFPage(noteID uint, page uint) error {
+	var note Note
+	if err := DB.First(&note, noteID).Error; err != nil {
+		return fmt.Errorf("笔记不存在: %v", err)
+	}
+
+	if note.Type != 1 {
+		return errors.New("该笔记不是 PDF 类型")
+	}
+
+	return DB.Model(&Note{}).Where("id = ?", noteID).Update("pdf_page", page).Error
+}
+
 // LogFrontend prints frontend logs to backend stdout for easy debugging
 func (a *App) LogFrontend(message string) {
 	log.Printf("[Frontend] %s", message)
