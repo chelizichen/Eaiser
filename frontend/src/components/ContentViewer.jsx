@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { Button, Typography } from 'antd'
+import { Button, Typography, Image } from 'antd'
 import { EditOutlined, ColumnWidthOutlined, CloseOutlined, UnorderedListOutlined } from '@ant-design/icons'
 import { renderMarkdown } from '../lib/markdown'
 import { extractHeadings } from '../lib/extractHeadings'
@@ -12,6 +12,7 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
   const [data, setData] = useState(null)
   const [pdfPath, setPdfPath] = useState(null)
   const contentRef = useRef(null)
+  const [previewImage, setPreviewImage] = useState({ visible: false, src: '' })
 
   async function load() {
     if (!item) return
@@ -215,6 +216,34 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
           const el = block.tagName === 'PRE' && block.firstElementChild ? block.firstElementChild : block
           hljs.highlightElement(el)
         })
+        
+        // 为所有图片添加双击放大功能
+        const images = contentContainer.querySelectorAll('img')
+        images.forEach((img) => {
+          // 检查是否已经添加过事件监听器
+          if (img.dataset.dblclickAdded) {
+            return
+          }
+          
+          // 标记已添加
+          img.dataset.dblclickAdded = 'true'
+          
+          // 添加双击事件
+          const handleDoubleClick = (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            const src = img.src || img.getAttribute('src') || ''
+            if (src) {
+              setPreviewImage({ visible: true, src })
+            }
+          }
+          
+          img.addEventListener('dblclick', handleDoubleClick)
+          
+          // 添加鼠标样式提示
+          img.style.cursor = 'zoom-in'
+          img.title = '双击放大图片'
+        })
       } catch (e) {
         console.error('Error in post-render effect:', e)
       }
@@ -321,6 +350,28 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
               dangerouslySetInnerHTML={{ __html: html }} 
             />
           </div>
+          {/* 图片预览 */}
+          {previewImage.src && (
+            <Image
+              width={0}
+              height={0}
+              style={{ display: 'none' }}
+              src={previewImage.src}
+              preview={{
+                visible: previewImage.visible,
+                src: previewImage.src,
+                onVisibleChange: (visible) => {
+                  setPreviewImage(prev => ({ ...prev, visible }))
+                  if (!visible) {
+                    // 关闭时清空 src，避免预览组件残留
+                    setTimeout(() => {
+                      setPreviewImage({ visible: false, src: '' })
+                    }, 300)
+                  }
+                },
+              }}
+            />
+          )}
         </div>
       </ErrorBoundary>
     )
