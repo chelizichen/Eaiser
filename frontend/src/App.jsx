@@ -5,6 +5,7 @@ import CategorySidebar from './components/CategorySidebar.jsx'
 import ContentViewer from './components/ContentViewer.jsx'
 import CategoryView from './components/CategoryView.jsx'
 import NotesTab from './components/NotesTab.jsx'
+import TOCViewer from './components/TOCViewer.jsx'
 
 const { Sider, Content } = Layout
 const MIN_PANE_RATIO = 0.2
@@ -22,8 +23,9 @@ export default function App() {
       id: 'pane-1',
       activeCategory: null,
       selectedItem: null,
-      currentView: 'category', // 'category' | 'notes' | 'blank'
+      currentView: 'category', // 'category' | 'notes' | 'blank' | 'toc'
       editingNote: null,
+      tocData: null, // { headings, onHeadingClick, sourcePaneId } 用于目录 pane
     },
   ])
   const [paneWidths, setPaneWidths] = useState([1])
@@ -51,7 +53,7 @@ export default function App() {
     }
   }, [panes, activePaneId])
 
-  // 监听菜单栏的刷新事件
+  // 监听菜单栏的刷新事件和开发者工具事件
   useEffect(() => {
     if (window.runtime) {
       window.runtime.EventsOn('menu-refresh', () => {
@@ -403,6 +405,99 @@ export default function App() {
                       onClosePane={() => closePane(pane.id)}
                       canClose={canClosePane}
                       isActive={isActive}
+                      onOpenTOC={(headings, onHeadingClick) => {
+                        // 记录接收到的数据
+                        
+                        // 创建新的 pane 显示目录
+                        const newId = `pane-${Date.now()}`
+                        const sourcePaneId = pane.id // 保存源 pane ID
+                        
+                        // 创建一个包装的回调，只实现高亮功能
+                        const wrappedOnHeadingClick = (headingId) => {
+                          // 查找所有 pane 中的内容容器，找到包含该标题的那个
+                          const allViewerContents = document.querySelectorAll('.viewer-content')
+                          let targetElement = null
+                          
+                          // 遍历所有内容容器，查找包含目标标题的容器
+                          for (const container of allViewerContents) {
+                            // 尝试通过 ID 查找
+                            let element = container.querySelector(`#${headingId}`)
+                            if (!element) {
+                              // 如果通过 ID 找不到，尝试查找所有 h1-h6，然后通过文本匹配
+                              const allHeadings = container.querySelectorAll('h1, h2, h3, h4, h5, h6')
+                              for (const heading of allHeadings) {
+                                const headingIdFromElement = heading.id || heading.getAttribute('data-id') || ''
+                                if (headingIdFromElement === headingId) {
+                                  element = heading
+                                  break
+                                }
+                              }
+                            }
+                            
+                            if (element) {
+                              targetElement = element
+                              break
+                            }
+                          }
+                          
+                          if (targetElement) {
+                            // 高亮
+                            const originalBg = targetElement.style.backgroundColor
+                            const originalTransition = targetElement.style.transition
+                            targetElement.style.transition = 'background-color 0.3s'
+                            targetElement.style.backgroundColor = 'rgba(47, 128, 237, 0.15)'
+                            setTimeout(() => {
+                              targetElement.style.backgroundColor = originalBg
+                              setTimeout(() => {
+                                targetElement.style.transition = originalTransition
+                              }, 300)
+                            }, 1500)
+                            
+                            // 将焦点切换到包含该内容的 pane
+                            let paneElement = targetElement.closest('.pane-shell')
+                            if (paneElement) {
+                              paneElement.click()
+                            }
+                          } else {
+                            // 回退到原始回调
+                            if (onHeadingClick) {
+                              onHeadingClick(headingId)
+                            }
+                          }
+                        }
+                        
+                        setPanes(prev => {
+                          const idx = prev.findIndex(p => p.id === sourcePaneId)
+                          if (idx === -1) {
+                            return prev
+                          }
+                          const newPane = {
+                            id: newId,
+                            activeCategory: null,
+                            selectedItem: null,
+                            currentView: 'toc',
+                            editingNote: null,
+                            tocData: { headings, onHeadingClick: wrappedOnHeadingClick, sourcePaneId },
+                          }
+                          const nextPanes = [...prev.slice(0, idx + 1), newPane, ...prev.slice(idx + 1)]
+                          
+                          
+                          // 在同一个更新周期内更新宽度
+                          setPaneWidths(prevWidths => {
+                            const base = prevWidths[idx] ?? 1
+                            const left = Math.max(base / 2, MIN_PANE_RATIO)
+                            const right = Math.max(base - left, MIN_PANE_RATIO)
+                            const next = [...prevWidths.slice(0, idx), left, right, ...prevWidths.slice(idx + 1)]
+                            const total = next.reduce((a, b) => a + b, 0)
+                            return next.map(w => w / total)
+                          })
+                          
+                          return nextPanes
+                        })
+                        
+                        setActivePaneId(newId)
+                        
+                      }}
                     />
                   )
                 }
@@ -430,6 +525,33 @@ export default function App() {
                       categories={categories}
                       ensureUnlocked={ensureUnlocked}
                     />
+                  )
+                }
+                if (pane.currentView === 'toc' && pane.tocData) {
+                  return (
+                    <div className="pane-viewer">
+                      <div className="pane-actions-inline">
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<ColumnWidthOutlined />}
+                          onClick={() => splitPane(pane.id)}
+                          title="分屏"
+                        />
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<CloseOutlined />}
+                          onClick={() => closePane(pane.id)}
+                          disabled={!canClosePane}
+                          title="关闭面板"
+                        />
+                      </div>
+                      <TOCViewer
+                        headings={pane.tocData.headings}
+                        onHeadingClick={pane.tocData.onHeadingClick}
+                      />
+                    </div>
                   )
                 }
                 return <Empty description="请选择左侧目录或文件以在此面板展示" />

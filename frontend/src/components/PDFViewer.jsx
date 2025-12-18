@@ -10,8 +10,6 @@ if (typeof window !== 'undefined') {
   // 直接使用字符串路径，不要使用 new URL() 或任何 URL 对象
   // 这可以避免 react-pdf 内部使用 URL.parse 时的错误
   pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
-  
-  console.log('PDF.js worker configured:', pdfjs.GlobalWorkerOptions.workerSrc)
 }
 
 export default function PDFViewer({ filePath, title }) {
@@ -21,46 +19,16 @@ export default function PDFViewer({ filePath, title }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  useEffect(() => {
-    // 记录组件加载和文件路径
-    console.log('PDFViewer mounted, filePath:', filePath)
-    console.log('PDF.js worker path:', pdfjs.GlobalWorkerOptions.workerSrc)
-    if (window.go?.backend?.App?.LogFrontend) {
-      window.go.backend.App.LogFrontend(JSON.stringify({
-        event: 'PDFViewer.mount',
-        filePath: filePath ? 'present' : 'missing',
-        filePathType: filePath ? (filePath.startsWith('blob:') ? 'blob' : 'other') : 'none',
-        workerSrc: pdfjs.GlobalWorkerOptions.workerSrc,
-        title
-      }))
-    }
-  }, [filePath, title])
-
   function onDocumentLoadSuccess({ numPages }) {
-    console.log('PDF loaded successfully, pages:', numPages)
     setNumPages(numPages)
     setLoading(false)
     setError(null)
-    if (window.go?.backend?.App?.LogFrontend) {
-      window.go.backend.App.LogFrontend(JSON.stringify({
-        event: 'PDFViewer.loadSuccess',
-        numPages
-      }))
-    }
   }
 
   function onDocumentLoadError(error) {
-    console.error('PDF load error:', error)
     const errorMsg = error?.message || String(error) || '未知错误'
     setError('加载 PDF 失败: ' + errorMsg)
     setLoading(false)
-    if (window.go?.backend?.App?.LogFrontend) {
-      window.go.backend.App.LogFrontend(JSON.stringify({
-        event: 'PDFViewer.loadError',
-        error: errorMsg,
-        stack: error?.stack
-      }))
-    }
   }
 
   function goToPrevPage() {
@@ -169,13 +137,6 @@ export default function PDFViewer({ filePath, title }) {
           loading={<div style={{ padding: 40, color: '#fff' }}>加载 PDF...</div>}
           error={(error) => {
             console.error('Document error prop:', error)
-            if (window.go?.backend?.App?.LogFrontend) {
-              window.go.backend.App.LogFrontend(JSON.stringify({
-                event: 'PDFViewer.documentError',
-                error: error?.message || String(error),
-                stack: error?.stack
-              }))
-            }
             return (
               <div style={{ padding: 40, color: '#fff', textAlign: 'center' }}>
                 <Typography.Text style={{ color: '#fff' }}>
