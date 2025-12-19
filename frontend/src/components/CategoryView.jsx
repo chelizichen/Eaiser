@@ -1,15 +1,18 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
-import { Button, Card, List, Typography, Empty, Input, Alert, message } from 'antd'
-import { FileTextOutlined, SearchOutlined, AppstoreOutlined, UnorderedListOutlined, FilePdfOutlined } from '@ant-design/icons'
+import { Button, Card, List, Typography, Empty, Input, Alert, message, Modal, Select } from 'antd'
+import { FileTextOutlined, SearchOutlined, AppstoreOutlined, UnorderedListOutlined, FilePdfOutlined, FolderOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import extractFirstImageUrl from '../lib/extractFirstImageurl'
 
-export default function CategoryView({ activeCategory, onNavigate, reloadToken, categories, ensureUnlocked }) {
+export default function CategoryView({ activeCategory, onNavigate, reloadToken, categories, ensureUnlocked, onCategoryChanged }) {
   const [notes, setNotes] = useState([])
   const [loading, setLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [viewMode, setViewMode] = useState('card') // 'list' 或 'card'
   const fileInputRef = useRef(null)
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false)
+  const [selectedNoteId, setSelectedNoteId] = useState(null)
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null)
 
   const activeCat = useMemo(
     () => (categories || []).find(c => c.id === activeCategory),
@@ -49,6 +52,115 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
   }, [notes, searchText])
 
   const hasContent = notes.length > 0
+  const canDeleteCategory = !hasContent && activeCategory !== null
+
+  // 处理删除目录
+  const handleDeleteCategory = () => {
+    if (!activeCategory) return
+    
+    const categoryName = activeCat?.name || '该目录'
+    
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定要删除目录"${categoryName}"吗？此操作不可恢复。`,
+      okText: '确定',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await window.go.backend.App.DeleteCategory(activeCategory)
+          message.success('目录删除成功')
+          // 刷新目录列表
+          if (onCategoryChanged) {
+            onCategoryChanged()
+          }
+          // 清空当前选中的目录
+          if (onNavigate) {
+            onNavigate('category', null)
+          }
+        } catch (e) {
+          console.error('删除目录失败:', e)
+          message.error('删除目录失败: ' + (e?.message || '未知错误'))
+        }
+      }
+    })
+  }
+
+  // 构建目录树形数据（用于 Select 组件）
+  const categoryOptions = useMemo(() => {
+    // 构建目录路径（包含所有父级）
+    const buildPath = (catId, path = []) => {
+      const cat = (categories || []).find(c => c.id === catId)
+      if (!cat) return path
+      const newPath = [cat.name, ...path]
+      if (cat.parentId) {
+        return buildPath(cat.parentId, newPath)
+      }
+      return newPath
+    }
+
+    const buildOptions = (cats, parentId = null, level = 0) => {
+      const children = (categories || []).filter(c => 
+        (parentId === null && !c.parentId) || (c.parentId && c.parentId === parentId)
+      )
+      return children.flatMap(cat => {
+        const path = buildPath(cat.id)
+        const label = path.length > 1 ? path.join(' > ') : path[0]
+        return [
+          {
+            value: cat.id,
+            label: '  '.repeat(level) + label
+          },
+          ...buildOptions(cats, cat.id, level + 1)
+        ]
+      })
+    }
+    return [
+      { value: null, label: '无目录' },
+      ...buildOptions(categories)
+    ]
+  }, [categories])
+
+  // 处理修改目录
+  const handleChangeCategory = async () => {
+    if (!selectedNoteId) return
+    
+    try {
+      // 获取笔记数据
+      const note = notes.find(n => n.id === selectedNoteId)
+      if (!note) {
+        message.error('笔记不存在')
+        return
+      }
+
+      // 更新笔记的目录
+      await window.go.backend.App.UpdateNoteMD(
+        note.id,
+        note.title || '',
+        note.language || 'md',
+        note.contentMd || '',
+        selectedCategoryId || 0
+      )
+      
+      message.success('目录修改成功')
+      setCategoryModalVisible(false)
+      setSelectedNoteId(null)
+      setSelectedCategoryId(null)
+      
+      // 刷新列表
+      await loadAll()
+    } catch (e) {
+      console.error('修改目录失败:', e)
+      message.error('修改目录失败: ' + (e?.message || '未知错误'))
+    }
+  }
+
+  // 打开修改目录对话框
+  const openCategoryModal = (noteId, currentCategoryId) => {
+    setSelectedNoteId(noteId)
+    setSelectedCategoryId(currentCategoryId || null)
+    setCategoryModalVisible(true)
+  }
 
   async function handleImportPDF(event) {
     const file = event.target.files?.[0]
@@ -145,6 +257,14 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
           size="middle"
           title={viewMode === 'card' ? '切换到列表模式' : '切换到卡片模式'}
         />
+        <Button
+          icon={<DeleteOutlined />}
+          onClick={handleDeleteCategory}
+          size="middle"
+          disabled={!canDeleteCategory}
+          danger
+          title={canDeleteCategory ? '删除目录' : '目录下有内容，无法删除'}
+        />
       </div>
 
       {/* 内容列表 */}
@@ -207,22 +327,46 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
                     >
                       {/* 右上角小编辑按钮，PDF 类型不显示 */}
                       {!isPDF && (
-                        <Button
-                          size="small"
-                          type="text"
+                        <div
                           style={{
                             position: 'absolute',
                             top: 4,
                             right: 4,
-                            color: '#00aeea',
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openNote('notes')
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4,
+                            alignItems: 'flex-end',
                           }}
                         >
-                          编辑
-                        </Button>
+                          <Button
+                            size="small"
+                            type="text"
+                            icon={<EditOutlined />}
+                            style={{
+                              color: '#00aeea',
+                              padding: '2px 4px',
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openNote('notes')
+                            }}
+                            title="编辑"
+                          />
+                          <Button
+                            size="small"
+                            type="text"
+                            icon={<FolderOutlined />}
+                            style={{
+                              color: '#00aeea',
+                              padding: '2px 4px',
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openCategoryModal(note.id, note.categoryId)
+                            }}
+                            title="修改目录"
+                          />
+                        </div>
                       )}
                       <div>
                         <Typography.Text strong style={{ fontSize: 16, display: 'block', marginBottom: 8,color: bgUrl ? 'rgba(255,255,255,0.85)' : undefined }}>
@@ -257,6 +401,7 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
                         key="edit"
                         size="small"
                         type="link"
+                        icon={<EditOutlined />}
                         onClick={(e) => {
                           e.stopPropagation()
                           // 进入编辑模式：跳到 NotesTab，并携带要编辑的 note 信息
@@ -282,10 +427,20 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
                             })
                           }
                         }}
-                      >
-                        编辑
-                      </Button>
-                    )
+                        title="编辑"
+                      />
+                    ),
+                    <Button
+                      key="category"
+                      size="small"
+                      type="link"
+                      icon={<FolderOutlined />}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openCategoryModal(note.id, note.categoryId)
+                      }}
+                      title="修改目录"
+                    />
                   ].filter(Boolean)}
                   onClick={() =>
                     (async () => {
@@ -327,7 +482,36 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
             )}
           </div>
         </Card>
-      )}      
+      )}
+
+      {/* 修改目录对话框 */}
+      <Modal
+        title="修改目录"
+        open={categoryModalVisible}
+        onOk={handleChangeCategory}
+        onCancel={() => {
+          setCategoryModalVisible(false)
+          setSelectedNoteId(null)
+          setSelectedCategoryId(null)
+        }}
+        okText="确定"
+        cancelText="取消"
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Typography.Text>选择新目录：</Typography.Text>
+        </div>
+        <Select
+          style={{ width: '100%' }}
+          value={selectedCategoryId}
+          onChange={setSelectedCategoryId}
+          placeholder="请选择目录"
+          showSearch
+          filterOption={(input, option) =>
+            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          }
+          options={categoryOptions}
+        />
+      </Modal>
 
     </div>
   )

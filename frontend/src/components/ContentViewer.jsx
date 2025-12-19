@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { Button, Typography, Image } from 'antd'
-import { EditOutlined, ColumnWidthOutlined, CloseOutlined, UnorderedListOutlined } from '@ant-design/icons'
+import { Button, Typography, Image, Select, Modal, message } from 'antd'
+import { EditOutlined, ColumnWidthOutlined, CloseOutlined, UnorderedListOutlined, FolderOutlined } from '@ant-design/icons'
 import { renderMarkdown } from '../lib/markdown'
 import { extractHeadings } from '../lib/extractHeadings'
 import PDFViewer from './PDFViewer'
@@ -8,11 +8,13 @@ import ErrorBoundary from './ErrorBoundary'
 import 'highlight.js/styles/github.css'
 import hljs from 'highlight.js'
 
-export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, canClose = true, onOpenTOC }) {
+export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, canClose = true, onOpenTOC, categories = [] }) {
   const [data, setData] = useState(null)
   const [pdfPath, setPdfPath] = useState(null)
   const contentRef = useRef(null)
   const [previewImage, setPreviewImage] = useState({ visible: false, src: '' })
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false)
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null)
 
   async function load() {
     if (!item) return
@@ -32,6 +34,13 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
   }
 
   useEffect(() => { load() }, [item])
+
+  // 当 data 加载后，设置当前目录 ID
+  useEffect(() => {
+    if (data) {
+      setSelectedCategoryId(data.categoryId || null)
+    }
+  }, [data])
 
   // 计算派生值（必须在所有 hooks 之前，但可以在 useEffect 之后）
   const raw = data?.contentMd || ''
@@ -121,6 +130,70 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
       console.error('Error opening TOC:', e)
     }
   }, [onOpenTOC, headings, handleHeadingClick, onSplitPane])
+
+  // 处理修改目录
+  const handleChangeCategory = useCallback(async () => {
+    if (!data || !data.id) return
+    
+    try {
+      // 更新笔记的目录（PDF 和普通笔记都使用 UpdateNoteMD）
+      await window.go.backend.App.UpdateNoteMD(
+        data.id,
+        data.title || '',
+        data.language || 'md',
+        data.contentMd || '',
+        selectedCategoryId || 0
+      )
+      
+      message.success('目录修改成功')
+      setCategoryModalVisible(false)
+      
+      // 重新加载数据
+      const list = await window.go.backend.App.ListNotes(null)
+      const found = (list || []).find(n => n.id === data.id)
+      if (found) {
+        setData(found)
+      }
+    } catch (e) {
+      console.error('修改目录失败:', e)
+      message.error('修改目录失败: ' + (e?.message || '未知错误'))
+    }
+  }, [data, selectedCategoryId])
+
+  // 构建目录树形数据（用于 Select 组件）
+  const categoryOptions = useMemo(() => {
+    // 构建目录路径（包含所有父级）
+    const buildPath = (catId, path = []) => {
+      const cat = (categories || []).find(c => c.id === catId)
+      if (!cat) return path
+      const newPath = [cat.name, ...path]
+      if (cat.parentId) {
+        return buildPath(cat.parentId, newPath)
+      }
+      return newPath
+    }
+
+    const buildOptions = (cats, parentId = null, level = 0) => {
+      const children = (categories || []).filter(c => 
+        (parentId === null && !c.parentId) || (c.parentId && c.parentId === parentId)
+      )
+      return children.flatMap(cat => {
+        const path = buildPath(cat.id)
+        const label = path.length > 1 ? path.join(' > ') : path[0]
+        return [
+          {
+            value: cat.id,
+            label: '  '.repeat(level) + label
+          },
+          ...buildOptions(cats, cat.id, level + 1)
+        ]
+      })
+    }
+    return [
+      { value: null, label: '无目录' },
+      ...buildOptions(categories)
+    ]
+  }, [categories])
 
   // 如果是 PDF 类型，获取文件内容并创建 blob URL
   useEffect(() => {
@@ -333,16 +406,25 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
               alignItems: 'start',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
               <Typography.Title level={4} style={{ margin: 0 }}>{data.title}</Typography.Title>
-              <Button
-                size="small"
-                type="primary"
-                icon={<EditOutlined />}
-                onClick={() => onEdit && onEdit({ item, data })}
-              >
-                编辑
-              </Button>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<EditOutlined />}
+                  onClick={() => onEdit && onEdit({ item, data })}
+                >
+                  编辑
+                </Button>
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<FolderOutlined />}
+                  onClick={() => setCategoryModalVisible(true)}
+                  title="修改目录"
+                />
+              </div>
             </div>
             <div 
               ref={contentRef}
@@ -372,6 +454,30 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
               }}
             />
           )}
+          {/* 修改目录对话框 */}
+          <Modal
+            title="修改目录"
+            open={categoryModalVisible}
+            onOk={handleChangeCategory}
+            onCancel={() => setCategoryModalVisible(false)}
+            okText="确定"
+            cancelText="取消"
+          >
+            <div style={{ marginBottom: 16 }}>
+              <Typography.Text>选择新目录：</Typography.Text>
+            </div>
+            <Select
+              style={{ width: '100%' }}
+              value={selectedCategoryId}
+              onChange={setSelectedCategoryId}
+              placeholder="请选择目录"
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={categoryOptions}
+            />
+          </Modal>
         </div>
       </ErrorBoundary>
     )

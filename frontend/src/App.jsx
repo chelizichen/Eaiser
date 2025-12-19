@@ -391,6 +391,7 @@ export default function App() {
                   return (
                     <ContentViewer
                       item={pane.selectedItem}
+                      categories={categories}
                       onEdit={({ item: it, data }) => {
                         const targetId = it?.id || data?.id
                         const targetCategory = it?.categoryId || data?.categoryId
@@ -523,6 +524,7 @@ export default function App() {
                       reloadToken={listVersion}
                       categories={categories}
                       ensureUnlocked={ensureUnlocked}
+                      onCategoryChanged={refreshCategories}
                     />
                   )
                 }
