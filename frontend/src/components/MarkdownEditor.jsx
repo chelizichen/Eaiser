@@ -100,7 +100,8 @@ function MarkdownEditor({ valueMD, onChangeMD, height = '60vh' }) {
   }, [handlePaste, logFrontend, valueMD])
   const modules = {
     toolbar: [
-      [{ 'header': [1, 2, false] }],
+      // 支持 H1~H6 及正文
+      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
       ['bold', 'italic', 'underline', 'strike'],
       [{ 'list': 'ordered'}, { 'list': 'bullet' }],
       [{ 'align': [] }],
@@ -109,6 +110,34 @@ function MarkdownEditor({ valueMD, onChangeMD, height = '60vh' }) {
       ['clean']
     ],
   };
+
+  // 快捷键 Cmd/Ctrl + 1~6 切换标题级别
+  useEffect(() => {
+    const editor = quillRef.current?.getEditor?.()
+    if (!editor || !editor.root) return
+
+    const handler = (e) => {
+      if (!(e.metaKey || e.ctrlKey)) return
+      const key = e.key
+      if (key >= '1' && key <= '6') {
+        e.preventDefault()
+        const level = parseInt(key, 10)
+        const currentFormat = editor.getFormat() || {}
+        const currentHeader = currentFormat.header
+        const target = currentHeader === level ? false : level
+        editor.format('header', target, 'user')
+        const next = editor.root.innerHTML
+        setQuillContent(next)
+        onChangeMD && onChangeMD(next)
+        logFrontend({ event: 'MarkdownEditor.shortcut.header', level, target })
+      }
+    }
+
+    editor.root.addEventListener('keydown', handler)
+    return () => {
+      editor.root.removeEventListener('keydown', handler)
+    }
+  }, [onChangeMD, logFrontend])
   const formats = [
     'header',
     'bold', 'italic', 'underline', 'strike',
