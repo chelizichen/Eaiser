@@ -1,5 +1,25 @@
 html, body, #root { height: 100vh;overflow: hidden; }
-* { box-sizing: border-box;margin: 0;padding: 0; }
+* { 
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+.title-bar{
+  -webkit-touch-callout:none;
+  -webkit-user-select:none;
+  -moz-user-select:none;
+  -ms-user-select:none;
+  user-select:none;
+  width: 100%;
+  --wails-draggable: drag;
+  widows: 1;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+}
+
 .codebox { background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 .toolbar { display: flex; gap: 8px; }
 .sidebar-header { display: flex; align-items: center; justify-content: space-between; }

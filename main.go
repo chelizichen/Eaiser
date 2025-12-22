@@ -65,6 +65,8 @@ func main() {
 		OnShutdown:  app.Shutdown,
 		Bind:        []interface{}{app},
 		Menu:        appMenu,
+		CSSDragProperty: "widows",
+        CSSDragValue:    "1",
 		Mac: &mac.Options{
 			TitleBar: mac.TitleBarHiddenInset(),
 			About: &mac.AboutInfo{
