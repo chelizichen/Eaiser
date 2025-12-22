@@ -229,13 +229,16 @@ export default function App() {
     setPanes(prev => {
       const idx = prev.findIndex(p => p.id === paneId)
       if (idx === -1) return prev
+      const currentPane = prev[idx]
       const newId = `pane-${Date.now()}`
+      // 复制当前 pane 的所有状态到新 pane
       const nextPane = {
         id: newId,
-        activeCategory: null,
-        selectedItem: null,
-        currentView: 'blank',
-        editingNote: null,
+        activeCategory: currentPane.activeCategory,
+        selectedItem: currentPane.selectedItem,
+        currentView: currentPane.currentView,
+        editingNote: currentPane.editingNote,
+        tocData: currentPane.tocData,
       }
       const next = [...prev.slice(0, idx + 1), nextPane, ...prev.slice(idx + 1)]
       setActivePaneId(newId)
