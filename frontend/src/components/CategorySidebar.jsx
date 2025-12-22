@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Button, Input, List, Popover, ColorPicker, Typography, Modal, Tree, message, Tooltip } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import { PlusOutlined, BgColorsOutlined } from '@ant-design/icons'
 import ColorPresetManager from './ColorPresetManager.jsx'
 
 export default function CategorySidebar({ categories, activeCategory, onSelect, onSelectItem, onChanged }) {
@@ -8,6 +8,8 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
   const [palette, setPalette] = useState([])
   const [selectedPresetId, setSelectedPresetId] = useState(null)
   const [managerOpen, setManagerOpen] = useState(false)
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [createChildModalOpen, setCreateChildModalOpen] = useState(false)
   const [expandedKeys, setExpandedKeys] = useState([])
   const [autoExpandParent, setAutoExpandParent] = useState(true)
   const [addingParentId, setAddingParentId] = useState(null)
@@ -30,6 +32,7 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
     await window.go.backend.App.CreateCategory(name, selectedPresetId, null)
     setName('')
     setSelectedPresetId(null)
+    setCreateModalOpen(false)
     onChanged()
   }
 
@@ -42,6 +45,7 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
     setAddingParentId(null)
     setChildName('')
     setChildPresetId(null)
+    setCreateChildModalOpen(false)
     onChanged()
   }
   async function updateColor(cat, presetId) {
@@ -120,7 +124,7 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
                 {c.name}
               </div>
             )}
-            <Button type="text" icon={<PlusOutlined />} onClick={(e) => { e.stopPropagation(); setAddingParentId(c.id); setChildEncrypted(false) }} />
+            <Button type="text" icon={<PlusOutlined />} onClick={(e) => { e.stopPropagation(); setAddingParentId(c.id); setCreateChildModalOpen(true) }} />
           </div>
         ),
         children: [],
@@ -158,52 +162,11 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
         })
       }
     }
-    if (addingParentId && map.has(addingParentId)) {
-      const parent = map.get(addingParentId)
-      parent.children.push({
-        key: 'add-' + addingParentId,
-        title: (
-          <div style={{ display: 'grid', gap: 8, padding: 8 }}>
-            <Input
-              placeholder="子分类名称"
-              value={childName}
-              onChange={(e) => setChildName(e.target.value)}
-              style={{ color: (palette.find(p => p.id === childPresetId)?.hex) || undefined }}
-            />
-            <div className="palette-grid-v2">
-              {palette.map(p => (
-                <div
-                  key={p.id}
-                  className={`palette-item-v2 ${childPresetId === p.id ? 'active' : ''}`}
-                  style={{ 
-                    borderColor: p.hex,
-                    color: childPresetId === p.id ? '#fff' : p.hex,
-                    background: childPresetId === p.id ? p.hex : 'transparent'
-                  }}
-                  onClick={() => setChildPresetId(p.id)}
-                >
-                  <div 
-                    className="palette-dot" 
-                    style={{ background: p.hex }}
-                  />
-                  <span className="palette-name">{p.name}{p.encrypted ? ' 🔒' : ''}</span>
-                </div>
-              ))}
-            </div>
-            <div className="toolbar">
-              <Button onClick={() => { setAddingParentId(null); setChildName(''); setChildPresetId(null) }}>取消</Button>
-              <Button type="primary" onClick={createChild} disabled={!childName.trim()}>添加</Button>
-            </div>
-          </div>
-        )
-      })
-    }
     return roots
   }
 
   const treeData = buildTree(categories || [])
   const selectedHex = (palette.find(p => p.id === selectedPresetId)?.hex) || undefined
-  const childSelectedHex = (palette.find(p => p.id === childPresetId)?.hex) || undefined
 
   return (
     <div style={{ padding: '36px 12px 12px 12px',boxSizing:'border-box','--wails-draggable':'drag' }}>
@@ -215,7 +178,10 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
         >
           目录
         </Typography.Text>
-        <Button size="small" onClick={() => setManagerOpen(true)}>管理颜色</Button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button size="small" type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)} />
+          <Button size="small" icon={<BgColorsOutlined />} onClick={() => setManagerOpen(true)} />
+        </div>
       </div>
       <div style={{ marginTop: 8, height: '60vh', overflow: 'auto' }}>
         <Tree
@@ -226,7 +192,6 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
             setAutoExpandParent(false)
             // Load files for newly expanded categories
             for (const k of keys) {
-              if (String(k).startsWith('add-')) continue
               const idNum = Number(k)
               if (!Number.isNaN(idNum) && !filesByCategory[idNum]) {
                 await loadCatFiles(idNum)
@@ -257,30 +222,97 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
           }}
         />
       </div>
-      <div style={{ display: 'grid', gap: 8 }}>
-        <Input placeholder="新建分类" value={name} onChange={(e) => setName(e.target.value)} style={{ color: selectedHex }} />
-        <div className="palette-grid-v2">
-          {palette.map(p => (
-            <div
-              key={p.id}
-              className={`palette-item-v2 ${selectedPresetId === p.id ? 'active' : ''}`}
-              style={{ 
-                borderColor: p.hex,
-                color: selectedPresetId === p.id ? '#fff' : p.hex,
-                background: selectedPresetId === p.id ? p.hex : 'transparent'
-              }}
-              onClick={() => setSelectedPresetId(p.id)}
-            >
-              <div 
-                className="palette-dot" 
-                style={{ background: p.hex }}
-              />
-              <span className="palette-name">{p.name}</span>
+      <Modal 
+        open={createModalOpen} 
+        onCancel={() => { 
+          setCreateModalOpen(false)
+          setName('')
+          setSelectedPresetId(null)
+        }} 
+        title="新建分类"
+        onOk={create}
+        okText="添加"
+        okButtonProps={{ disabled: !name.trim() }}
+      >
+        <div style={{ display: 'grid', gap: 16, paddingTop: 16 }}>
+          <Input 
+            placeholder="分类名称" 
+            value={name} 
+            onChange={(e) => setName(e.target.value)}
+            onPressEnter={create}
+            style={{ color: selectedHex }} 
+          />
+          <div>
+            <Typography.Text type="secondary" style={{ marginBottom: 8, display: 'block' }}>选择颜色</Typography.Text>
+            <div className="palette-grid-v2">
+              {palette.map(p => (
+                <div
+                  key={p.id}
+                  className={`palette-item-v2 ${selectedPresetId === p.id ? 'active' : ''}`}
+                  style={{ 
+                    borderColor: p.hex,
+                    color: selectedPresetId === p.id ? '#fff' : p.hex,
+                    background: selectedPresetId === p.id ? p.hex : 'transparent'
+                  }}
+                  onClick={() => setSelectedPresetId(p.id)}
+                >
+                  <div 
+                    className="palette-dot" 
+                    style={{ background: p.hex }}
+                  />
+                  <span className="palette-name">{p.name}</span>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
-        <Button type="primary" onClick={create} disabled={!name.trim()}>添加</Button>
-      </div>
+      </Modal>
+      <Modal 
+        open={createChildModalOpen} 
+        onCancel={() => { 
+          setCreateChildModalOpen(false)
+          setAddingParentId(null)
+          setChildName('')
+          setChildPresetId(null)
+        }} 
+        title={`新建子分类${addingParentId ? ` - ${categories?.find(c => c.id === addingParentId)?.name || ''}` : ''}`}
+        onOk={createChild}
+        okText="添加"
+        okButtonProps={{ disabled: !childName.trim() }}
+      >
+        <div style={{ display: 'grid', gap: 16, paddingTop: 16 }}>
+          <Input 
+            placeholder="子分类名称" 
+            value={childName} 
+            onChange={(e) => setChildName(e.target.value)}
+            onPressEnter={createChild}
+            style={{ color: (palette.find(p => p.id === childPresetId)?.hex) || undefined }} 
+          />
+          <div>
+            <Typography.Text type="secondary" style={{ marginBottom: 8, display: 'block' }}>选择颜色</Typography.Text>
+            <div className="palette-grid-v2">
+              {palette.map(p => (
+                <div
+                  key={p.id}
+                  className={`palette-item-v2 ${childPresetId === p.id ? 'active' : ''}`}
+                  style={{ 
+                    borderColor: p.hex,
+                    color: childPresetId === p.id ? '#fff' : p.hex,
+                    background: childPresetId === p.id ? p.hex : 'transparent'
+                  }}
+                  onClick={() => setChildPresetId(p.id)}
+                >
+                  <div 
+                    className="palette-dot" 
+                    style={{ background: p.hex }}
+                  />
+                  <span className="palette-name">{p.name}{p.encrypted ? ' 🔒' : ''}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Modal>
       <Modal open={managerOpen} onCancel={() => setManagerOpen(false)} footer={null} title="颜色预设管理">
         <ColorPresetManager onChanged={() => { loadPalette(); onChanged() }} />
       </Modal>
