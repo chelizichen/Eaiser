@@ -137,23 +137,42 @@ export default function AIChatTab({
   // 解析内联格式的提及 (@category:名称 或 @note:标题)
   const parseInlineMentions = (text) => {
     const contexts = []
-    const categoryRegex = /@category:([^\s@]+)/g
-    const noteRegex = /@note:([^\s@]+)/g
+    // 修改正则：匹配 @category: 或 @note: 后直到下一个 @ 或行尾的所有内容（包括空格）
+    // 使用非贪婪匹配，遇到 @ 或行尾停止
+    const categoryRegex = /@category:([^@\n]+?)(?=\s|@|$)/g
+    const noteRegex = /@note:([^@\n]+?)(?=\s|@|$)/g
 
+    console.log('[AIChatTab] parseInlineMentions 输入文本:', text)
+    console.log('[AIChatTab] 可用目录列表:', categories.map(c => ({ id: c.id, name: c.name })))
+    
     let match
     while ((match = categoryRegex.exec(text)) !== null) {
-      const name = match[1]
+      const name = match[1].trim() // 去除首尾空格
+      console.log(`[AIChatTab] 解析到目录名称: "${name}"`)
       const cat = categories.find(c => c.name === name)
       if (cat) {
+        console.log(`[AIChatTab] 找到目录: id=${cat.id}, name=${cat.name}`)
         contexts.push({ type: 'category', id: cat.id, name: cat.name })
+      } else {
+        console.warn(`[AIChatTab] 未找到目录: "${name}"`)
+        // 尝试模糊匹配（包含关系）
+        const fuzzyMatch = categories.find(c => c.name.includes(name) || name.includes(c.name))
+        if (fuzzyMatch) {
+          console.log(`[AIChatTab] 模糊匹配到目录: id=${fuzzyMatch.id}, name=${fuzzyMatch.name}`)
+          contexts.push({ type: 'category', id: fuzzyMatch.id, name: fuzzyMatch.name })
+        }
       }
     }
 
     while ((match = noteRegex.exec(text)) !== null) {
-      const title = match[1]
+      const title = match[1].trim()
+      console.log(`[AIChatTab] 解析到笔记标题: "${title}"`)
       const note = notes.find(n => n.title === title)
       if (note) {
+        console.log(`[AIChatTab] 找到笔记: id=${note.id}, title=${note.title}`)
         contexts.push({ type: 'note', id: note.id, name: note.title })
+      } else {
+        console.warn(`[AIChatTab] 未找到笔记: "${title}"`)
       }
     }
 
@@ -168,6 +187,7 @@ export default function AIChatTab({
       }
     })
 
+    console.log('[AIChatTab] parseInlineMentions 解析结果:', uniqueContexts)
     setSelectedContexts(uniqueContexts)
   }
 
@@ -252,25 +272,44 @@ export default function AIChatTab({
     try {
       // 收集上下文内容
       const contextTexts = []
+      console.log('[AIChatTab] 开始收集上下文，selectedContexts:', selectedContexts)
+      
       for (const ctx of selectedContexts) {
         try {
+          console.log(`[AIChatTab] 处理上下文: type=${ctx.type}, id=${ctx.id}, name=${ctx.name}`)
+          
           if (ctx.type === 'category') {
+            console.log(`[AIChatTab] 调用 GetCategoryContent: categoryId=${ctx.id}`)
             const content = await window.go.backend.App.GetCategoryContent(ctx.id)
-            if (content) {
+            console.log(`[AIChatTab] GetCategoryContent 返回: length=${content?.length || 0}, content=${content?.substring(0, 100) || 'empty'}...`)
+            
+            if (content && content.trim()) {
               let _content = striptags(content);
+              console.log(`[AIChatTab] 处理后内容长度: ${_content.length}`)
               contextTexts.push(`[目录: ${ctx.name}]\n${_content}`)
+              console.log(`[AIChatTab] 已添加目录上下文: ${ctx.name}`)
+            } else {
+              console.warn(`[AIChatTab] 目录内容为空: ${ctx.name} (id=${ctx.id})`)
             }
           } else if (ctx.type === 'note') {
+            console.log(`[AIChatTab] 调用 GetNoteContent: noteId=${ctx.id}`)
             const content = await window.go.backend.App.GetNoteContent(ctx.id)
-            if (content) {
+            console.log(`[AIChatTab] GetNoteContent 返回: length=${content?.length || 0}`)
+            
+            if (content && content.trim()) {
               let _content = striptags(content);
               contextTexts.push(`[笔记: ${ctx.name}]\n${_content}`)
+              console.log(`[AIChatTab] 已添加笔记上下文: ${ctx.name}`)
+            } else {
+              console.warn(`[AIChatTab] 笔记内容为空: ${ctx.name} (id=${ctx.id})`)
             }
           }
         } catch (e) {
-          console.error(`获取${ctx.type}内容失败:`, e)
+          console.error(`[AIChatTab] 获取${ctx.type}内容失败:`, e)
         }
       }
+      
+      console.log(`[AIChatTab] 上下文收集完成，contextTexts.length=${contextTexts.length}`)
 
       // 加入历史对话（只带最近若干条，避免上下文过长）
       if (messages.length > 0) {
@@ -328,7 +367,7 @@ export default function AIChatTab({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%',minHeight:'60vh' }}>
       <div className="pane-actions-inline">
         <Button
           type="text"

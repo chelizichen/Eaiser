@@ -326,23 +326,50 @@ func (a *App) LogFrontend(message string) {
 
 // GetCategoryContent 获取目录下所有笔记的内容
 func (a *App) GetCategoryContent(categoryID uint) (string, error) {
+	log.Printf("[GetCategoryContent] 开始获取目录内容，categoryID=%d", categoryID)
+	
+	// 先获取目录信息
+	var category Category
+	if err := DB.First(&category, categoryID).Error; err != nil {
+		log.Printf("[GetCategoryContent] 目录不存在: categoryID=%d, error=%v", categoryID, err)
+		return "", fmt.Errorf("目录不存在: %v", err)
+	}
+	log.Printf("[GetCategoryContent] 目录信息: id=%d, name=%s, parentId=%v", category.ID, category.Name, category.ParentID)
+	
 	notes, err := a.ListNotes(&categoryID)
 	if err != nil {
+		log.Printf("[GetCategoryContent] 获取笔记列表失败: categoryID=%d, error=%v", categoryID, err)
 		return "", fmt.Errorf("获取目录笔记失败: %v", err)
 	}
-
+	
+	log.Printf("[GetCategoryContent] 获取到笔记数量: %d (categoryID=%d)", len(notes), categoryID)
+	
 	var contents []string
 	for _, note := range notes {
 		if note.Type == 1 {
 			// PDF 类型，跳过
+			log.Printf("[GetCategoryContent] 跳过 PDF 笔记: id=%d, title=%s", note.ID, note.Title)
 			continue
 		}
 		if note.ContentMD != "" {
+			contentLen := len(note.ContentMD)
+			log.Printf("[GetCategoryContent] 添加笔记: id=%d, title=%s, contentLength=%d, categoryId=%d", 
+				note.ID, note.Title, contentLen, note.CategoryID)
 			contents = append(contents, fmt.Sprintf("标题: %s\n%s", note.Title, note.ContentMD))
+		} else {
+			log.Printf("[GetCategoryContent] 跳过空内容笔记: id=%d, title=%s", note.ID, note.Title)
 		}
 	}
 
-	return strings.Join(contents, "\n\n---\n\n"), nil
+	result := strings.Join(contents, "\n\n---\n\n")
+	resultLen := len(result)
+	log.Printf("[GetCategoryContent] 最终内容长度: %d 字符 (categoryID=%d, 笔记数=%d)", resultLen, categoryID, len(contents))
+	
+	if resultLen == 0 {
+		log.Printf("[GetCategoryContent] 警告: 目录下没有有效内容 (categoryID=%d)", categoryID)
+	}
+	
+	return result, nil
 }
 
 // GetNoteContent 获取单个笔记的内容
@@ -659,3 +686,4 @@ func (a *App) GetImageContent(relativePath string) (string, error) {
 	base64Data := base64.StdEncoding.EncodeToString(fileData)
 	return fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data), nil
 }
+
