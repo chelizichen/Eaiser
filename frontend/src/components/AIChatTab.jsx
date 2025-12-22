@@ -272,8 +272,28 @@ export default function AIChatTab({
         }
       }
 
+      // 加入历史对话（只带最近若干条，避免上下文过长）
+      if (messages.length > 0) {
+        const historyLimit = 10 // 只保留最近 10 条
+        const recent = messages.slice(-historyLimit)
+        const historyText = recent
+          .map(msg => {
+            const roleLabel = msg.role === 'user' ? '用户' : '助手'
+            const plain = striptags(msg.content || '')
+            return `${roleLabel}: ${plain}`
+          })
+          .join('\n\n')
+
+        if (historyText.trim()) {
+          contextTexts.unshift(`[对话历史]\n${historyText}`)
+        }
+      }
+
       // 调用 AI API
-      const response = await window.go.backend.App.ChatWithAI(userMessage || '请分析关联的内容', contextTexts)
+      const response = await window.go.backend.App.ChatWithAI(
+        userMessage || '请分析关联的内容',
+        contextTexts
+      )
       
       // 添加 AI 回复
       setMessages(prev => [...prev, {
