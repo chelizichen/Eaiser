@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { Button, Card, List, Typography, Empty, Input, Alert, message, Modal, Select } from 'antd'
-import { FileTextOutlined, SearchOutlined, AppstoreOutlined, UnorderedListOutlined, FilePdfOutlined, FolderOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { FileTextOutlined, SearchOutlined, AppstoreOutlined, UnorderedListOutlined, FilePdfOutlined, FolderOutlined, EditOutlined, DeleteOutlined, CodeOutlined, PlayCircleOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import extractFirstImageUrl from '../lib/extractFirstImageurl'
 
@@ -244,6 +244,27 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
         >
           导入PDF
         </Button>
+        <Button
+          icon={<CodeOutlined />}
+          onClick={() => {
+            if (!activeCategory) {
+              message.warning('请先选择一个目录')
+              return
+            }
+            // 导航到 NotesTab，并传递 noteType: 2 标记
+            onNavigate('notes', {
+              type: 'note',
+              mode: 'create',
+              noteType: 2,
+              categoryId: activeCategory
+            })
+          }}
+          size="middle"
+          disabled={!activeCategory}
+          title={activeCategory ? '创建命令行工具' : '请先选择目录'}
+        >
+          命令行工具
+        </Button>
         <input
           ref={fileInputRef}
           type="file"
@@ -283,7 +304,8 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
               }}>
                 {filteredNotes.map((note) => {
                   const isPDF = note.type === 1
-                  const bgUrl = isPDF ? null : extractFirstImageUrl(note.contentMd)
+                  const isScript = note.type === 2
+                  const bgUrl = (isPDF || isScript) ? null : extractFirstImageUrl(note.contentMd)
                   const openNote = async (mode) => {
                     const cid = note.categoryId ?? activeCategory
                     if (ensureUnlocked && cid != null) {
@@ -325,7 +347,7 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
                       }}
                       onClick={() => openNote(null)}
                     >
-                      {/* 右上角小编辑按钮，PDF 类型不显示 */}
+                      {/* 右上角按钮 */}
                       {!isPDF && (
                         <div
                           style={{
@@ -338,6 +360,43 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
                             alignItems: 'flex-end',
                           }}
                         >
+                          {isScript && (
+                            <Button
+                              size="small"
+                              type="text"
+                              icon={<PlayCircleOutlined />}
+                              style={{
+                                color: '#52c41a',
+                                padding: '2px 4px',
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                // 导航到查看页面，并标记需要自动执行
+                                const cid = note.categoryId ?? activeCategory
+                                if (ensureUnlocked && cid != null) {
+                                  ensureUnlocked(cid, '内容').then((ok) => {
+                                    if (!ok) return
+                                    onNavigate(null, {
+                                      type: 'note',
+                                      id: note.id,
+                                      categoryId: note.categoryId,
+                                      title: note.title,
+                                      autoExecute: true
+                                    })
+                                  })
+                                } else {
+                                  onNavigate(null, {
+                                    type: 'note',
+                                    id: note.id,
+                                    categoryId: note.categoryId,
+                                    title: note.title,
+                                    autoExecute: true
+                                  })
+                                }
+                              }}
+                              title="执行脚本"
+                            />
+                          )}
                           <Button
                             size="small"
                             type="text"
@@ -371,6 +430,7 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
                       <div>
                         <Typography.Text strong style={{ fontSize: 16, display: 'block', marginBottom: 8,color: bgUrl ? 'rgba(255,255,255,0.85)' : undefined }}>
                           {isPDF && <FilePdfOutlined style={{ marginRight: 6, color: '#ff4d4f' }} />}
+                          {note.type === 2 && <CodeOutlined style={{ marginRight: 6, color: '#1890ff' }} />}
                           {note.title}
                         </Typography.Text>
                         <Typography.Text style={{ fontSize: 12, display: 'block', color: bgUrl ? 'rgba(255,255,255,0.75)' : undefined }}>
@@ -392,10 +452,46 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
             dataSource={filteredNotes}
             renderItem={(note) => {
               const isPDF = note.type === 1
+              const isScript = note.type === 2
               return (
                 <List.Item
                   style={{ padding: '8px 12px' }}
                   actions={[
+                    isScript && (
+                      <Button
+                        key="execute"
+                        size="small"
+                        type="link"
+                        icon={<PlayCircleOutlined />}
+                        style={{ color: '#52c41a' }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          // 导航到查看页面，并标记需要自动执行
+                          const cid = note.categoryId ?? activeCategory
+                          if (ensureUnlocked && cid != null) {
+                            ensureUnlocked(cid, '内容').then((ok) => {
+                              if (!ok) return
+                              onNavigate(null, {
+                                type: 'note',
+                                id: note.id,
+                                categoryId: note.categoryId,
+                                title: note.title,
+                                autoExecute: true
+                              })
+                            })
+                          } else {
+                            onNavigate(null, {
+                              type: 'note',
+                              id: note.id,
+                              categoryId: note.categoryId,
+                              title: note.title,
+                              autoExecute: true
+                            })
+                          }
+                        }}
+                        title="执行脚本"
+                      />
+                    ),
                     !isPDF && (
                       <Button
                         key="edit"
@@ -462,6 +558,7 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
                     <div>
                       <Typography.Text strong style={{cursor:"pointer"}}>
                         {isPDF && <FilePdfOutlined style={{ marginRight: 6, color: '#ff4d4f' }} />}
+                        {isScript && <CodeOutlined style={{ marginRight: 6, color: '#1890ff' }} />}
                         {note.title}
                       </Typography.Text>
                       <Typography.Text type="secondary" style={{ fontSize: 12,marginLeft:12 }}>

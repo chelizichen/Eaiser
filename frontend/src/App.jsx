@@ -160,7 +160,8 @@ export default function App() {
       prev.map(p => {
         if (p.id !== paneId) return p
         const next = { ...p }
-        if (item && item.type === 'note' && item.mode === 'edit') {
+        // 处理编辑模式或创建命令行工具模式
+        if (item && item.type === 'note' && (item.mode === 'edit' || item.mode === 'create' || item.noteType === 2)) {
           next.editingNote = item
           next.selectedItem = null
           next.currentView = 'notes'

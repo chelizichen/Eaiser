@@ -11,11 +11,15 @@ export function CreateNote(arg1:string,arg2:string,arg3:string,arg4:string,arg5:
 
 export function CreateNoteMD(arg1:string,arg2:string,arg3:string,arg4:number):Promise<backend.Note>;
 
+export function CreateNoteMDWithType(arg1:string,arg2:string,arg3:string,arg4:number,arg5:number):Promise<backend.Note>;
+
 export function DeleteCategory(arg1:number):Promise<void>;
 
 export function DeleteColorPreset(arg1:number):Promise<void>;
 
 export function DeleteNote(arg1:number):Promise<void>;
+
+export function ExecuteScript(arg1:number):Promise<backend.ScriptResult>;
 
 export function GetContext():Promise<context.Context>;
 

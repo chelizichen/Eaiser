@@ -141,6 +141,24 @@ export namespace backend {
 		    return a;
 		}
 	}
+	export class ScriptResult {
+	    stdout: string;
+	    stderr: string;
+	    success: boolean;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ScriptResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.stdout = source["stdout"];
+	        this.stderr = source["stderr"];
+	        this.success = source["success"];
+	        this.error = source["error"];
+	    }
+	}
 
 }
 

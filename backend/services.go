@@ -1,11 +1,14 @@
 package backend
 
 import (
+	"bytes"
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -125,12 +128,21 @@ func (a *App) UpdateNote(id uint, title string, language string, snippet string,
 }
 
 func (a *App) CreateNoteMD(title string, language string, contentMD string, categoryID uint) (*Note, error) {
-	n := &Note{Title: title, Language: language, ContentMD: contentMD, CategoryID: categoryID}
+	return a.CreateNoteMDWithType(title, language, contentMD, categoryID, 0)
+}
+
+func (a *App) CreateNoteMDWithType(title string, language string, contentMD string, categoryID uint, noteType uint) (*Note, error) {
+	n := &Note{Title: title, Language: language, ContentMD: contentMD, CategoryID: categoryID, Type: noteType}
 	err := DB.Create(n).Error
 	return n, err
 }
 
 func (a *App) UpdateNoteMD(id uint, title string, language string, contentMD string, categoryID uint) error {
+	var note Note
+	if err := DB.First(&note, id).Error; err != nil {
+		return err
+	}
+	// 保持原有的 Type，不修改
 	return DB.Model(&Note{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"title":       title,
 		"language":    language,
@@ -244,6 +256,64 @@ func (a *App) UpdatePDFPage(noteID uint, page uint) error {
 	}
 
 	return DB.Model(&Note{}).Where("id = ?", noteID).Update("pdf_page", page).Error
+}
+
+// ExecuteScript 执行命令行工具脚本
+// noteID: 笔记 ID
+// 返回: ScriptResult
+func (a *App) ExecuteScript(noteID uint) (*ScriptResult, error) {
+	// 查询笔记
+	var note Note
+	if err := DB.First(&note, noteID).Error; err != nil {
+		return nil, fmt.Errorf("笔记不存在: %v", err)
+	}
+
+	// 验证类型
+	if note.Type != 2 {
+		return nil, errors.New("该笔记不是命令行工具类型")
+	}
+
+	// 验证脚本内容
+	scriptContent := strings.TrimSpace(note.ContentMD)
+	if scriptContent == "" {
+		return nil, errors.New("脚本内容为空")
+	}
+
+	// 记录执行日志
+	log.Printf("执行脚本 (Note ID: %d): %s", noteID, note.Title)
+
+	// 创建执行上下文，设置超时 30 秒
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// 执行脚本（使用 sh -c）
+	cmd := exec.CommandContext(ctx, "sh", "-c", scriptContent)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	// 执行命令
+	err := cmd.Run()
+
+	// 获取输出
+	stdoutStr := stdout.String()
+	stderrStr := stderr.String()
+
+	result := &ScriptResult{
+		Stdout:  stdoutStr,
+		Stderr:  stderrStr,
+		Success: err == nil,
+	}
+
+	// 如果命令执行失败，记录错误信息
+	if err != nil {
+		log.Printf("脚本执行失败 (Note ID: %d): %v, stderr: %s", noteID, err, stderrStr)
+		result.Error = err.Error()
+	} else {
+		log.Printf("脚本执行成功 (Note ID: %d), stdout: %s", noteID, stdoutStr)
+	}
+
+	return result, nil
 }
 
 // LogFrontend prints frontend logs to backend stdout for easy debugging

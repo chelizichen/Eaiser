@@ -18,6 +18,10 @@ export function CreateNoteMD(arg1, arg2, arg3, arg4) {
   return window['go']['backend']['App']['CreateNoteMD'](arg1, arg2, arg3, arg4);
 }
 
+export function CreateNoteMDWithType(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['backend']['App']['CreateNoteMDWithType'](arg1, arg2, arg3, arg4, arg5);
+}
+
 export function DeleteCategory(arg1) {
   return window['go']['backend']['App']['DeleteCategory'](arg1);
 }
@@ -28,6 +32,10 @@ export function DeleteColorPreset(arg1) {
 
 export function DeleteNote(arg1) {
   return window['go']['backend']['App']['DeleteNote'](arg1);
+}
+
+export function ExecuteScript(arg1) {
+  return window['go']['backend']['App']['ExecuteScript'](arg1);
 }
 
 export function GetContext() {

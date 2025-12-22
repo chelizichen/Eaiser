@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { Button, Typography, Image, Select, Modal, message } from 'antd'
-import { EditOutlined, ColumnWidthOutlined, CloseOutlined, UnorderedListOutlined, FolderOutlined } from '@ant-design/icons'
+import { Button, Typography, Image, Select, Modal, message, Card, Alert, Collapse, Spin } from 'antd'
+import { EditOutlined, ColumnWidthOutlined, CloseOutlined, UnorderedListOutlined, FolderOutlined, PlayCircleOutlined, CodeOutlined } from '@ant-design/icons'
 import { renderMarkdown } from '../lib/markdown'
 import { extractHeadings } from '../lib/extractHeadings'
 import PDFViewer from './PDFViewer'
 import ErrorBoundary from './ErrorBoundary'
 import 'highlight.js/styles/github.css'
 import hljs from 'highlight.js'
+
+const { Panel } = Collapse
 
 export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, canClose = true, onOpenTOC, categories = [] }) {
   const [data, setData] = useState(null)
@@ -15,6 +17,8 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
   const [previewImage, setPreviewImage] = useState({ visible: false, src: '' })
   const [categoryModalVisible, setCategoryModalVisible] = useState(false)
   const [selectedCategoryId, setSelectedCategoryId] = useState(null)
+  const [executing, setExecuting] = useState(false)
+  const [execResult, setExecResult] = useState(null)
 
   async function load() {
     if (!item) return
@@ -41,6 +45,52 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
       setSelectedCategoryId(data.categoryId || null)
     }
   }, [data])
+
+  // 自动执行脚本（当 item.autoExecute 为 true 且是 Type 2 笔记时）
+  useEffect(() => {
+    if (item?.autoExecute && data && data.type === 2 && data.id) {
+      // 延迟一下，确保 UI 已经渲染
+      const timer = setTimeout(async () => {
+        setExecuting(true)
+        setExecResult(null)
+        
+        try {
+          const result = await window.go.backend.App.ExecuteScript(data.id)
+          if (result) {
+            setExecResult({
+              stdout: result.stdout || '',
+              stderr: result.stderr || '',
+              success: result.success !== false
+            })
+            if (result.success) {
+              message.success('脚本执行成功')
+            } else {
+              message.warning('脚本执行完成，但有错误输出')
+            }
+          } else {
+            setExecResult({
+              stdout: '',
+              stderr: '未知错误',
+              success: false
+            })
+            message.error('执行脚本失败: 未知错误')
+          }
+        } catch (e) {
+          console.error('执行脚本失败:', e)
+          const errorMsg = e?.message || '未知错误'
+          setExecResult({ 
+            stdout: '', 
+            stderr: errorMsg, 
+            success: false 
+          })
+          message.error('执行脚本失败: ' + errorMsg)
+        } finally {
+          setExecuting(false)
+        }
+      }, 300)
+      return () => clearTimeout(timer)
+    }
+  }, [item?.autoExecute, data?.id, data?.type])
 
   // 计算派生值（必须在所有 hooks 之前，但可以在 useEffect 之后）
   const raw = data?.contentMd || ''
@@ -130,6 +180,49 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
       console.error('Error opening TOC:', e)
     }
   }, [onOpenTOC, headings, handleHeadingClick, onSplitPane])
+
+  // 处理执行脚本
+  const handleExecuteScript = useCallback(async () => {
+    if (!data || !data.id) return
+    
+    setExecuting(true)
+    setExecResult(null)
+    
+    try {
+      const result = await window.go.backend.App.ExecuteScript(data.id)
+      // ExecuteScript 返回 ScriptResult 对象
+      if (result) {
+        setExecResult({
+          stdout: result.stdout || '',
+          stderr: result.stderr || '',
+          success: result.success !== false
+        })
+        if (result.success) {
+          message.success('脚本执行成功')
+        } else {
+          message.warning('脚本执行完成，但有错误输出')
+        }
+      } else {
+        setExecResult({
+          stdout: '',
+          stderr: '未知错误',
+          success: false
+        })
+        message.error('执行脚本失败: 未知错误')
+      }
+    } catch (e) {
+      console.error('执行脚本失败:', e)
+      const errorMsg = e?.message || '未知错误'
+      setExecResult({ 
+        stdout: '', 
+        stderr: errorMsg, 
+        success: false 
+      })
+      message.error('执行脚本失败: ' + errorMsg)
+    } finally {
+      setExecuting(false)
+    }
+  }, [data])
 
   // 处理修改目录
   const handleChangeCategory = useCallback(async () => {
@@ -287,6 +380,13 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
         blocks.forEach((block) => {
           // 尝试对 <code> 标签高亮，否则直接对 <pre> 高亮
           const el = block.tagName === 'PRE' && block.firstElementChild ? block.firstElementChild : block
+          // 检查是否已经有语言类，如果没有则尝试检测
+          if (!el.className || !el.className.includes('language-')) {
+            const detected = hljs.highlightAuto(el.textContent || '')
+            if (detected.language) {
+              el.className = `language-${detected.language}`
+            }
+          }
           hljs.highlightElement(el)
         })
         
@@ -359,6 +459,196 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
             )}
           </ErrorBoundary>
         </div>
+      )
+    }
+
+    // 命令行工具类型 (Type 2)
+    if (data.type === 2) {
+      const scriptContent = data.contentMd || ''
+      
+      return (
+        <ErrorBoundary>
+          <div className="pane-viewer">
+            <div className="pane-actions-inline">
+              <Button
+                type="text"
+                size="small"
+                icon={<ColumnWidthOutlined />}
+                onClick={onSplitPane}
+                title="分屏"
+              />
+              <Button
+                type="text"
+                size="small"
+                icon={<CloseOutlined />}
+                onClick={onClosePane}
+                disabled={!canClose}
+                title="关闭面板"
+              />
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gap: 12,
+                overflow: 'auto',
+                height: '90vh',
+                alignContent: 'start',
+                alignItems: 'start',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                <CodeOutlined style={{ fontSize: 20, color: '#1890ff' }} />
+                <Typography.Title level={4} style={{ margin: 0 }}>{data.title}</Typography.Title>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <Button
+                    size="small"
+                    type="primary"
+                    icon={<PlayCircleOutlined />}
+                    onClick={handleExecuteScript}
+                    loading={executing}
+                    disabled={executing || !scriptContent.trim()}
+                  >
+                    执行
+                  </Button>
+                  <Button
+                    size="small"
+                    type="default"
+                    icon={<EditOutlined />}
+                    onClick={() => onEdit && onEdit({ item, data })}
+                  >
+                    编辑
+                  </Button>
+                  <Button
+                    size="small"
+                    type="text"
+                    icon={<FolderOutlined />}
+                    onClick={() => setCategoryModalVisible(true)}
+                    title="修改目录"
+                  />
+                </div>
+              </div>
+              
+              {/* 脚本内容显示区域 */}
+              <Card title="脚本内容" size="small">
+                <pre
+                  style={{
+                    margin: 0,
+                    padding: 12,
+                    borderRadius: 4,
+                    overflow: 'auto',
+                    fontSize: 13,
+                    fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
+                  }}
+                >
+                  <code className="language-bash">{scriptContent || '(空脚本)'}</code>
+                </pre>
+              </Card>
+
+              {/* 执行结果区域 */}
+              {execResult && (
+                <Collapse defaultActiveKey={['result']}>
+                  <Panel 
+                    header={
+                      <span>
+                        {execResult.success ? (
+                          <span style={{ color: '#52c41a' }}>执行结果 (成功)</span>
+                        ) : (
+                          <span style={{ color: '#ff4d4f' }}>执行结果 (失败)</span>
+                        )}
+                      </span>
+                    } 
+                    key="result"
+                  >
+                    {execResult.stdout && (
+                      <div style={{ marginBottom: 12 }}>
+                        <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
+                          标准输出 (stdout):
+                        </Typography.Text>
+                        <pre
+                          style={{
+                            margin: 0,
+                            padding: 12,
+                            border: '1px solid #b7eb8f',
+                            borderRadius: 4,
+                            overflow: 'auto',
+                            fontSize: 12,
+                            fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {execResult.stdout}
+                        </pre>
+                      </div>
+                    )}
+                    {execResult.stderr && (
+                      <div>
+                        <Typography.Text strong style={{ display: 'block', marginBottom: 8, color: '#ff4d4f' }}>
+                          错误输出 (stderr):
+                        </Typography.Text>
+                        <pre
+                          style={{
+                            margin: 0,
+                            padding: 12,
+                            backgroundColor: '#fff2f0',
+                            border: '1px solid #ffccc7',
+                            borderRadius: 4,
+                            overflow: 'auto',
+                            fontSize: 12,
+                            fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                            color: '#ff4d4f',
+                          }}
+                        >
+                          {execResult.stderr}
+                        </pre>
+                      </div>
+                    )}
+                    {!execResult.stdout && !execResult.stderr && (
+                      <Typography.Text type="secondary">无输出</Typography.Text>
+                    )}
+                  </Panel>
+                </Collapse>
+              )}
+
+              {/* 执行中提示 */}
+              {executing && (
+                <Alert
+                  message="正在执行脚本..."
+                  description="请稍候，脚本执行可能需要一些时间"
+                  type="info"
+                  icon={<Spin size="small" />}
+                  showIcon
+                />
+              )}
+            </div>
+            {/* 修改目录对话框 */}
+            <Modal
+              title="修改目录"
+              open={categoryModalVisible}
+              onOk={handleChangeCategory}
+              onCancel={() => setCategoryModalVisible(false)}
+              okText="确定"
+              cancelText="取消"
+            >
+              <div style={{ marginBottom: 16 }}>
+                <Typography.Text>选择新目录：</Typography.Text>
+              </div>
+              <Select
+                style={{ width: '100%' }}
+                value={selectedCategoryId}
+                onChange={setSelectedCategoryId}
+                placeholder="请选择目录"
+                showSearch
+                filterOption={(input, option) =>
+                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+                options={categoryOptions}
+              />
+            </Modal>
+          </div>
+        </ErrorBoundary>
       )
     }
 

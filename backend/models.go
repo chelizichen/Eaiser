@@ -28,10 +28,17 @@ type Note struct {
 	Snippet    string    `json:"snippet" gorm:"type:text"`
 	Analysis   string    `json:"analysis" gorm:"type:text"`
 	ContentMD  string    `json:"contentMd" gorm:"type:longtext"`
-	Type       uint      `json:"type" gorm:"default:0"`    // 0: 正常笔记, 1: PDF
+	Type       uint      `json:"type" gorm:"default:0"`    // 0: 正常笔记, 1: PDF, 2: 命令行工具
 	FilePath   string    `json:"filePath" gorm:"size:500"` // PDF 文件路径
 	PDFPage    uint      `json:"pdfPage" gorm:"default:1"` // PDF 当前页码
 	CategoryID uint      `json:"categoryId"`
 	CreatedAt  time.Time `json:"createdAt"`
 	UpdatedAt  time.Time `json:"updatedAt"`
+}
+
+type ScriptResult struct {
+	Stdout  string `json:"stdout"`
+	Stderr  string `json:"stderr"`
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
 }
