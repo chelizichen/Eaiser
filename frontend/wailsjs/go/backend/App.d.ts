@@ -3,6 +3,8 @@
 import {backend} from '../models';
 import {context} from '../models';
 
+export function ChatWithAI(arg1:string,arg2:Array<string>):Promise<string>;
+
 export function CreateCategory(arg1:string,arg2:any,arg3:any):Promise<backend.Category>;
 
 export function CreateColorPreset(arg1:string,arg2:string,arg3:boolean):Promise<backend.ColorPreset>;
@@ -21,7 +23,17 @@ export function DeleteNote(arg1:number):Promise<void>;
 
 export function ExecuteScript(arg1:number):Promise<backend.ScriptResult>;
 
+export function GetAIConfig():Promise<backend.AIConfig>;
+
+export function GetCategoryContent(arg1:number):Promise<string>;
+
+export function GetConfigFilePath():Promise<string>;
+
 export function GetContext():Promise<context.Context>;
+
+export function GetImageContent(arg1:string):Promise<string>;
+
+export function GetNoteContent(arg1:number):Promise<string>;
 
 export function GetPDFContent(arg1:number):Promise<string>;
 
@@ -39,7 +51,11 @@ export function LogFrontend(arg1:string):Promise<void>;
 
 export function RequireBiometric(arg1:string):Promise<void>;
 
+export function SaveImage(arg1:string):Promise<string>;
+
 export function SetTheme(arg1:boolean):Promise<void>;
+
+export function UpdateAIConfig(arg1:backend.AIConfig):Promise<void>;
 
 export function UpdateCategory(arg1:number,arg2:string,arg3:any,arg4:any):Promise<void>;
 

@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Layout, Button, message, ConfigProvider, Breadcrumb, Tooltip, theme, Empty } from 'antd'
-import { ArrowLeftOutlined, BulbOutlined, BulbFilled, ColumnWidthOutlined, CloseOutlined } from '@ant-design/icons'
+import { Layout, Button, message, ConfigProvider, Breadcrumb, Tooltip, theme, Empty, Modal } from 'antd'
+import { ArrowLeftOutlined, BulbOutlined, BulbFilled, ColumnWidthOutlined, CloseOutlined, SettingOutlined } from '@ant-design/icons'
 import CategorySidebar from './components/CategorySidebar.jsx'
 import ContentViewer from './components/ContentViewer.jsx'
 import CategoryView from './components/CategoryView.jsx'
 import NotesTab from './components/NotesTab.jsx'
 import TOCViewer from './components/TOCViewer.jsx'
+import AIChatTab from './components/AIChatTab.jsx'
+import AIConfigPanel from './components/AIConfigPanel.jsx'
 
 const { Sider, Content } = Layout
 const MIN_PANE_RATIO = 0.2
@@ -23,7 +25,7 @@ export default function App() {
       id: 'pane-1',
       activeCategory: null,
       selectedItem: null,
-      currentView: 'category', // 'category' | 'notes' | 'blank' | 'toc'
+      currentView: 'category', // 'category' | 'notes' | 'blank' | 'toc' | 'ai'
       editingNote: null,
       tocData: null, // { headings, onHeadingClick, sourcePaneId } 用于目录 pane
     },
@@ -31,6 +33,7 @@ export default function App() {
   const [paneWidths, setPaneWidths] = useState([1])
   const [activePaneId, setActivePaneId] = useState('pane-1')
   const [dragging, setDragging] = useState(null)
+  const [configModalVisible, setConfigModalVisible] = useState(false)
   const containerRef = useRef(null)
 
   const activePane = panes.find(p => p.id === activePaneId) || panes[0]
@@ -160,6 +163,14 @@ export default function App() {
       prev.map(p => {
         if (p.id !== paneId) return p
         const next = { ...p }
+        // 处理 AI 视图
+        if (view === 'ai' || (item && item.type === 'ai')) {
+          next.currentView = 'ai'
+          next.selectedItem = null
+          next.editingNote = null
+          next.activeCategory = item?.categoryId ?? next.activeCategory
+          return next
+        }
         // 处理编辑模式或创建命令行工具模式
         if (item && item.type === 'note' && (item.mode === 'edit' || item.mode === 'create' || item.noteType === 2)) {
           next.editingNote = item
@@ -171,7 +182,7 @@ export default function App() {
         if (view) {
           next.currentView = view
           if (view !== 'notes') next.editingNote = null
-          if (view !== 'category') next.selectedItem = null
+          if (view !== 'category' && view !== 'ai') next.selectedItem = null
         }
         if (item) {
           next.selectedItem = item
@@ -375,6 +386,13 @@ export default function App() {
                 </>
               )}
             </Breadcrumb>
+            <Tooltip title="AI 配置">
+              <Button 
+                type="text"
+                icon={<SettingOutlined />}
+                onClick={() => setConfigModalVisible(true)}
+              />
+            </Tooltip>
             <Tooltip title={isDarkMode ? '切换到亮色模式' : '切换到暗色模式'}>
               <Button 
                 type="text"
@@ -556,6 +574,18 @@ export default function App() {
                     </div>
                   )
                 }
+                if (pane.currentView === 'ai') {
+                  return (
+                    <AIChatTab
+                      activeCategory={pane.activeCategory}
+                      categories={categories}
+                      onSplitPane={() => splitPane(pane.id)}
+                      onClosePane={() => closePane(pane.id)}
+                      canClose={canClosePane}
+                      ensureUnlocked={ensureUnlocked}
+                    />
+                  )
+                }
                 return <Empty description="请选择左侧目录或文件以在此面板展示" />
               })()
 
@@ -605,6 +635,18 @@ export default function App() {
         </Content>
       </Layout>
       </div>
+
+      {/* AI 配置对话框 */}
+      <Modal
+        title="AI 配置"
+        open={configModalVisible}
+        onCancel={() => setConfigModalVisible(false)}
+        footer={null}
+        width={800}
+        destroyOnClose
+      >
+        <AIConfigPanel onClose={() => setConfigModalVisible(false)} />
+      </Modal>
     </ConfigProvider>
   )
 }

@@ -28,6 +28,7 @@ func InitDB() {
 func AutoMigrate() {
 	DB.AutoMigrate(&Category{}, &ColorPreset{}, &Note{})
 	InitPDFStorage()
+	InitImageStorage()
 }
 
 func CloseDB() {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { Button, Card, List, Typography, Empty, Input, Alert, message, Modal, Select } from 'antd'
-import { FileTextOutlined, SearchOutlined, AppstoreOutlined, UnorderedListOutlined, FilePdfOutlined, FolderOutlined, EditOutlined, DeleteOutlined, CodeOutlined, PlayCircleOutlined } from '@ant-design/icons'
+import { FileTextOutlined, SearchOutlined, AppstoreOutlined, UnorderedListOutlined, FilePdfOutlined, FolderOutlined, EditOutlined, DeleteOutlined, CodeOutlined, PlayCircleOutlined, RobotOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import extractFirstImageUrl from '../lib/extractFirstImageurl'
 
@@ -245,6 +245,19 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
           导入PDF
         </Button>
         <Button
+          icon={<RobotOutlined />}
+          onClick={() => {
+            onNavigate('ai', {
+              type: 'ai',
+              categoryId: activeCategory
+            })
+          }}
+          size="middle"
+          title="AI 交互"
+        >
+          AI 助手
+        </Button>
+        <Button
           icon={<CodeOutlined />}
           onClick={() => {
             if (!activeCategory) {
@@ -286,6 +299,7 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
           danger
           title={canDeleteCategory ? '删除目录' : '目录下有内容，无法删除'}
         />
+
       </div>
 
       {/* 内容列表 */}

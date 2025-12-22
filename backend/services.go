@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -319,4 +322,339 @@ func (a *App) ExecuteScript(noteID uint) (*ScriptResult, error) {
 // LogFrontend prints frontend logs to backend stdout for easy debugging
 func (a *App) LogFrontend(message string) {
 	log.Printf("[Frontend] %s", message)
+}
+
+// GetCategoryContent 获取目录下所有笔记的内容
+func (a *App) GetCategoryContent(categoryID uint) (string, error) {
+	notes, err := a.ListNotes(&categoryID)
+	if err != nil {
+		return "", fmt.Errorf("获取目录笔记失败: %v", err)
+	}
+
+	var contents []string
+	for _, note := range notes {
+		if note.Type == 1 {
+			// PDF 类型，跳过
+			continue
+		}
+		if note.ContentMD != "" {
+			contents = append(contents, fmt.Sprintf("标题: %s\n%s", note.Title, note.ContentMD))
+		}
+	}
+
+	return strings.Join(contents, "\n\n---\n\n"), nil
+}
+
+// GetNoteContent 获取单个笔记的内容
+func (a *App) GetNoteContent(noteID uint) (string, error) {
+	var note Note
+	if err := DB.First(&note, noteID).Error; err != nil {
+		return "", fmt.Errorf("笔记不存在: %v", err)
+	}
+
+	if note.Type == 1 {
+		return "", errors.New("PDF 类型笔记暂不支持作为上下文")
+	}
+
+	return note.ContentMD, nil
+}
+
+// ChatWithAI 与 OpenAI API 进行对话
+func (a *App) ChatWithAI(prompt string, contextTexts []string) (string, error) {
+	log.Printf("[AI Chat] 开始 AI 对话请求")
+	log.Printf("[AI Chat] 用户提示词: %s", prompt)
+	log.Printf("[AI Chat] 关联上下文数量: %d", len(contextTexts))
+	
+	apiKey := Cfg.OpenAIAPIKey
+	if apiKey == "" {
+		log.Printf("[AI Chat] 错误: 未配置 OpenAI API Key")
+		return "", errors.New("未配置 OpenAI API Key，请设置 OPENAI_API_KEY 环境变量")
+	}
+
+	// 构建系统提示词
+	systemPrompt := "你是一个有用的 AI 助手。"
+	if len(contextTexts) > 0 {
+		systemPrompt += "以下是用户提供的上下文内容：\n\n"
+		systemPrompt += strings.Join(contextTexts, "\n\n---\n\n")
+		systemPrompt += "\n\n请基于以上上下文内容回答用户的问题。"
+		log.Printf("[AI Chat] 系统提示词长度: %d 字符", len(systemPrompt))
+		for i, ctx := range contextTexts {
+			log.Printf("[AI Chat] 上下文 %d 长度: %d 字符", i+1, len(ctx))
+		}
+	}
+
+	// 构建请求体
+	requestBody := map[string]interface{}{
+		"model": Cfg.OpenAIModel,
+		"messages": []map[string]string{
+			{
+				"role":    "system",
+				"content": systemPrompt,
+			},
+			{
+				"role":    "user",
+				"content": prompt,
+			},
+		},
+		"max_tokens": 2000,
+		"temperature": 0.7,
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		log.Printf("[AI Chat] 序列化请求失败: %v", err)
+		return "", fmt.Errorf("序列化请求失败: %v", err)
+	}
+	log.Printf("[AI Chat] 请求体大小: %d 字节", len(jsonData))
+
+	// 创建 HTTP 请求
+	apiURL := Cfg.OpenAIAPIURL
+	log.Printf("[AI Chat] 请求 URL: %s", apiURL)
+	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Printf("[AI Chat] 创建请求失败: %v", err)
+		return "", fmt.Errorf("创建请求失败: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	log.Printf("[AI Chat] 请求头已设置，API Key 长度: %d", len(apiKey))
+
+	// 发送请求
+	startTime := time.Now()
+	client := &http.Client{
+		Timeout: 60 * time.Second,
+	}
+	log.Printf("[AI Chat] 开始发送 HTTP 请求...")
+	resp, err := client.Do(req)
+	requestDuration := time.Since(startTime)
+	if err != nil {
+		log.Printf("[AI Chat] HTTP 请求失败 (耗时: %v): %v", requestDuration, err)
+		return "", fmt.Errorf("请求失败: %v", err)
+	}
+	defer resp.Body.Close()
+	log.Printf("[AI Chat] HTTP 响应状态码: %d (耗时: %v)", resp.StatusCode, requestDuration)
+
+	// 读取响应
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("[AI Chat] 读取响应失败: %v", err)
+		return "", fmt.Errorf("读取响应失败: %v", err)
+	}
+	log.Printf("[AI Chat] 响应体大小: %d 字节", len(body))
+
+	// 检查 HTTP 状态码
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("[AI Chat] API 请求失败 (状态码: %d): %s", resp.StatusCode, string(body))
+		return "", fmt.Errorf("API 请求失败 (状态码: %d): %s", resp.StatusCode, string(body))
+	}
+
+	// 解析响应
+	var apiResponse struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+
+	if err := json.Unmarshal(body, &apiResponse); err != nil {
+		log.Printf("[AI Chat] 解析响应失败: %v, 响应内容: %s", err, string(body))
+		return "", fmt.Errorf("解析响应失败: %v", err)
+	}
+
+	// 检查是否有错误
+	if apiResponse.Error.Message != "" {
+		log.Printf("[AI Chat] API 返回错误: %s", apiResponse.Error.Message)
+		return "", fmt.Errorf("API 错误: %s", apiResponse.Error.Message)
+	}
+
+	// 检查是否有回复
+	if len(apiResponse.Choices) == 0 {
+		log.Printf("[AI Chat] API 未返回任何回复")
+		return "", errors.New("API 未返回任何回复")
+	}
+
+	responseContent := apiResponse.Choices[0].Message.Content
+	log.Printf("[AI Chat] 收到 AI 回复，长度: %d 字符", len(responseContent))
+	log.Printf("[AI Chat] AI 回复内容: %s", responseContent)
+	log.Printf("[AI Chat] AI 对话请求完成")
+
+	return responseContent, nil
+}
+
+// GetAIConfig 获取 AI 配置
+func (a *App) GetAIConfig() (*AIConfig, error) {
+	cfgMu.RLock()
+	defer cfgMu.RUnlock()
+	
+	return &AIConfig{
+		APIKey: Cfg.OpenAIAPIKey,
+		APIURL: Cfg.OpenAIAPIURL,
+		Model:  Cfg.OpenAIModel,
+	}, nil
+}
+
+// UpdateAIConfig 更新 AI 配置
+func (a *App) UpdateAIConfig(config *AIConfig) error {
+	log.Printf("[Config] 更新 AI 配置")
+	
+	cfgMu.Lock()
+	
+	// 更新配置值
+	if config.APIKey != "" {
+		Cfg.OpenAIAPIKey = config.APIKey
+		log.Printf("[Config] API Key 已更新 (长度: %d)", len(config.APIKey))
+	}
+	if config.APIURL != "" {
+		Cfg.OpenAIAPIURL = config.APIURL
+		log.Printf("[Config] API URL 已更新: %s", config.APIURL)
+	}
+	if config.Model != "" {
+		Cfg.OpenAIModel = config.Model
+		log.Printf("[Config] Model 已更新: %s", config.Model)
+	}
+	
+	// 准备保存的数据
+	saveConfig := AIConfig{
+		APIKey: Cfg.OpenAIAPIKey,
+		APIURL: Cfg.OpenAIAPIURL,
+		Model:  Cfg.OpenAIModel,
+	}
+	
+	// 获取配置文件路径（需要在锁内获取，因为 configFilePath 可能被修改）
+	filePath := configFilePath
+	
+	cfgMu.Unlock() // 释放锁，避免在文件 I/O 时持有锁
+	
+	// 序列化配置
+	data, err := json.MarshalIndent(saveConfig, "", "  ")
+	if err != nil {
+		log.Printf("[Config] 序列化配置失败: %v", err)
+		return fmt.Errorf("序列化配置失败: %v", err)
+	}
+	
+	// 写入文件
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		log.Printf("[Config] 保存配置文件失败: %v", err)
+		return fmt.Errorf("保存配置文件失败: %v", err)
+	}
+	
+	log.Printf("[Config] 配置已保存到: %s", filePath)
+	return nil
+}
+
+// GetConfigFilePath 获取配置文件路径
+func (a *App) GetConfigFilePath() string {
+	return GetConfigFilePath()
+}
+
+// SaveImage 保存图片文件
+// imageDataBase64: base64 编码的图片数据（包含 data:image/xxx;base64, 前缀）
+// 返回: 相对路径，用于在 markdown 中引用
+func (a *App) SaveImage(imageDataBase64 string) (string, error) {
+	// 解析 base64 数据
+	var imageData []byte
+	var ext string
+	
+	// 检查是否包含 data URL 前缀
+	if strings.HasPrefix(imageDataBase64, "data:image/") {
+		// 解析 data URL
+		parts := strings.Split(imageDataBase64, ",")
+		if len(parts) != 2 {
+			return "", fmt.Errorf("无效的 base64 图片数据格式")
+		}
+		
+		// 提取 MIME 类型和扩展名
+		mimePart := parts[0]
+		if strings.Contains(mimePart, "png") {
+			ext = ".png"
+		} else if strings.Contains(mimePart, "jpeg") || strings.Contains(mimePart, "jpg") {
+			ext = ".jpg"
+		} else if strings.Contains(mimePart, "gif") {
+			ext = ".gif"
+		} else if strings.Contains(mimePart, "webp") {
+			ext = ".webp"
+		} else {
+			ext = ".png" // 默认使用 png
+		}
+		
+		// 解码 base64 数据
+		var err error
+		imageData, err = base64.StdEncoding.DecodeString(parts[1])
+		if err != nil {
+			log.Printf("Failed to decode base64 image data: %v\n", err)
+			return "", fmt.Errorf("解码图片数据失败: %v", err)
+		}
+	} else {
+		// 直接是 base64 字符串，尝试解码
+		var err error
+		imageData, err = base64.StdEncoding.DecodeString(imageDataBase64)
+		if err != nil {
+			log.Printf("Failed to decode base64 image data: %v\n", err)
+			return "", fmt.Errorf("解码图片数据失败: %v", err)
+		}
+		ext = ".png" // 默认扩展名
+	}
+
+	// 生成唯一文件名
+	timestamp := time.Now().UnixNano()
+	uniqueFileName := fmt.Sprintf("%d%s", timestamp, ext)
+
+	// 保存文件到图片存储目录
+	relativePath := uniqueFileName
+	fullPath := GetImageFullPath(relativePath)
+
+	if err := os.WriteFile(fullPath, imageData, 0644); err != nil {
+		log.Printf("Failed to save image file: %v\n", err)
+		return "", fmt.Errorf("保存图片文件失败: %v", err)
+	}
+
+	log.Printf("Image saved successfully: %s (size: %d bytes)\n", uniqueFileName, len(imageData))
+	
+	// 返回相对路径，前端可以使用 file:// 协议或相对路径引用
+	return relativePath, nil
+}
+
+// GetImageContent 获取图片的 base64 编码内容
+// relativePath: 相对路径（如 "1234567890.png"）
+func (a *App) GetImageContent(relativePath string) (string, error) {
+	if relativePath == "" {
+		return "", errors.New("图片路径为空")
+	}
+
+	fullPath := GetImageFullPath(relativePath)
+
+	// 验证文件是否存在
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		return "", fmt.Errorf("图片文件不存在: %s", fullPath)
+	}
+
+	fileData, err := os.ReadFile(fullPath)
+	if err != nil {
+		log.Printf("Failed to read image file: %v\n", err)
+		return "", fmt.Errorf("读取图片文件失败: %v", err)
+	}
+
+	// 检测图片类型
+	var mimeType string
+	ext := filepath.Ext(relativePath)
+	switch strings.ToLower(ext) {
+	case ".png":
+		mimeType = "image/png"
+	case ".jpg", ".jpeg":
+		mimeType = "image/jpeg"
+	case ".gif":
+		mimeType = "image/gif"
+	case ".webp":
+		mimeType = "image/webp"
+	default:
+		mimeType = "image/png"
+	}
+
+	base64Data := base64.StdEncoding.EncodeToString(fileData)
+	return fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data), nil
 }

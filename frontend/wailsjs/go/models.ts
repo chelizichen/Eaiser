@@ -1,5 +1,21 @@
 export namespace backend {
 	
+	export class AIConfig {
+	    apiKey: string;
+	    apiURL: string;
+	    model: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.apiKey = source["apiKey"];
+	        this.apiURL = source["apiURL"];
+	        this.model = source["model"];
+	    }
+	}
 	export class ColorPreset {
 	    id: number;
 	    name: string;
