@@ -364,6 +364,7 @@ func (a *App) ChatWithAI(prompt string, contextTexts []string) (string, error) {
 	log.Printf("[AI Chat] 开始 AI 对话请求")
 	log.Printf("[AI Chat] 用户提示词: %s", prompt)
 	log.Printf("[AI Chat] 关联上下文数量: %d", len(contextTexts))
+	log.Printf("[AI Chat] 关联上下文: %v", contextTexts)
 	
 	apiKey := Cfg.OpenAIAPIKey
 	if apiKey == "" {

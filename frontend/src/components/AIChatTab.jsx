@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { Button, Input, List, Typography, Tag, message, AutoComplete, Spin, theme } from 'antd'
 import { ColumnWidthOutlined, CloseOutlined, SendOutlined, RobotOutlined, FolderOutlined, FileTextOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import { renderMarkdown } from '../lib/markdown'
-
+import striptags from 'striptags'
 const { TextArea } = Input
 
 export default function AIChatTab({ 
@@ -257,12 +257,14 @@ export default function AIChatTab({
           if (ctx.type === 'category') {
             const content = await window.go.backend.App.GetCategoryContent(ctx.id)
             if (content) {
-              contextTexts.push(`[目录: ${ctx.name}]\n${content}`)
+              let _content = striptags(content);
+              contextTexts.push(`[目录: ${ctx.name}]\n${_content}`)
             }
           } else if (ctx.type === 'note') {
             const content = await window.go.backend.App.GetNoteContent(ctx.id)
             if (content) {
-              contextTexts.push(`[笔记: ${ctx.name}]\n${content}`)
+              let _content = striptags(content);
+              contextTexts.push(`[笔记: ${ctx.name}]\n${_content}`)
             }
           }
         } catch (e) {

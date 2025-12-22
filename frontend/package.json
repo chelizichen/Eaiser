@@ -20,6 +20,7 @@
     "react-dom": "^18.3.1",
     "react-pdf": "^10.2.0",
     "react-quill": "^2.0.0",
+    "striptags": "^3.2.0",
     "turndown": "^7.2.0",
     "turndown-plugin-gfm": "^1.0.2"
   },
