@@ -340,7 +340,7 @@ export default function App() {
           />
         </Sider>
         <Content style={{ padding: 16, paddingTop: 0 }}>
-          <div style={{ height:36, width: '100%', '--wails-draggable':'drag', cursor:'grab', display:'flex', alignItems:'center', justifyContent:'center' }}></div>
+          <div style={{ height:36, width: '100%', '--wails-draggable':'drag', display:'flex', alignItems:'center', justifyContent:'center' }}></div>
           <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
             {(activePane?.currentView !== 'category' || headerSelectedItem) && (
               <Button 
