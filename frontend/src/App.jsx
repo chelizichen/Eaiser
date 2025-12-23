@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Layout, Button, message, ConfigProvider, Breadcrumb, Tooltip, theme, Empty, Modal } from 'antd'
-import { ArrowLeftOutlined, BulbOutlined, BulbFilled, ColumnWidthOutlined, CloseOutlined, SettingOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, BulbOutlined, BulbFilled, ColumnWidthOutlined, CloseOutlined, SettingOutlined, FileTextOutlined } from '@ant-design/icons'
 import CategorySidebar from './components/CategorySidebar.jsx'
 import ContentViewer from './components/ContentViewer.jsx'
 import CategoryView from './components/CategoryView.jsx'
@@ -34,6 +34,9 @@ export default function App() {
   const [activePaneId, setActivePaneId] = useState('pane-1')
   const [dragging, setDragging] = useState(null)
   const [configModalVisible, setConfigModalVisible] = useState(false)
+  const [logModalVisible, setLogModalVisible] = useState(false)
+  const [logContent, setLogContent] = useState('')
+  const [loadingLog, setLoadingLog] = useState(false)
   const containerRef = useRef(null)
 
   const activePane = panes.find(p => p.id === activePaneId) || panes[0]
@@ -85,6 +88,26 @@ export default function App() {
       }
       return newMode
     })
+  }
+
+  // 读取日志文件
+  async function loadLogFile() {
+    setLoadingLog(true)
+    try {
+      const content = await window.go.backend.App.ReadLogFile()
+      setLogContent(content || '日志文件为空')
+    } catch (e) {
+      message.error(`读取日志失败: ${e.message || e}`)
+      setLogContent(`读取日志失败: ${e.message || e}`)
+    } finally {
+      setLoadingLog(false)
+    }
+  }
+
+  // 打开日志查看弹窗
+  function openLogModal() {
+    setLogModalVisible(true)
+    loadLogFile()
   }
 
   function updatePaneState(paneId, updater) {
@@ -403,6 +426,13 @@ export default function App() {
                 onClick={toggleTheme}
               />
             </Tooltip>
+            <Tooltip title="查看日志">
+              <Button 
+                type="text"
+                icon={<FileTextOutlined />}
+                onClick={openLogModal}
+              />
+            </Tooltip>
           </div>
 
           <div className="pane-container" ref={containerRef}>
@@ -649,6 +679,30 @@ export default function App() {
         destroyOnClose
       >
         <AIConfigPanel onClose={() => setConfigModalVisible(false)} />
+      </Modal>
+
+      {/* 日志查看对话框 */}
+      <Modal
+        title="日志文件"
+        open={logModalVisible}
+        onCancel={() => setLogModalVisible(false)}
+        onOk={() => loadLogFile()}
+        okText="刷新"
+        width={900}
+        style={{ top: 20 }}
+        bodyStyle={{ maxHeight: '80vh', overflow: 'auto' }}
+      >
+        <pre style={{ 
+          margin: 0, 
+          padding: 0,
+          fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
+          fontSize: '12px',
+          lineHeight: '1.5',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word'
+        }}>
+          {loadingLog ? '加载中...' : logContent}
+        </pre>
       </Modal>
     </ConfigProvider>
   )

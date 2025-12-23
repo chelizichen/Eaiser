@@ -62,6 +62,10 @@ export function GetImageContent(arg1) {
   return window['go']['backend']['App']['GetImageContent'](arg1);
 }
 
+export function GetLogFilePath() {
+  return window['go']['backend']['App']['GetLogFilePath']();
+}
+
 export function GetNoteContent(arg1) {
   return window['go']['backend']['App']['GetNoteContent'](arg1);
 }
@@ -92,6 +96,10 @@ export function ListNotes(arg1) {
 
 export function LogFrontend(arg1) {
   return window['go']['backend']['App']['LogFrontend'](arg1);
+}
+
+export function ReadLogFile() {
+  return window['go']['backend']['App']['ReadLogFile']();
 }
 
 export function RequireBiometric(arg1) {

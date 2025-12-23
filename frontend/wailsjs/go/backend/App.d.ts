@@ -33,6 +33,8 @@ export function GetContext():Promise<context.Context>;
 
 export function GetImageContent(arg1:string):Promise<string>;
 
+export function GetLogFilePath():Promise<string>;
+
 export function GetNoteContent(arg1:number):Promise<string>;
 
 export function GetPDFContent(arg1:number):Promise<string>;
@@ -48,6 +50,8 @@ export function ListColorPresets():Promise<Array<backend.ColorPreset>>;
 export function ListNotes(arg1:any):Promise<Array<backend.Note>>;
 
 export function LogFrontend(arg1:string):Promise<void>;
+
+export function ReadLogFile():Promise<string>;
 
 export function RequireBiometric(arg1:string):Promise<void>;
 

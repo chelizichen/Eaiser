@@ -580,6 +580,39 @@ func (a *App) GetConfigFilePath() string {
 	return GetConfigFilePath()
 }
 
+// GetLogFilePath 获取日志文件路径
+func (a *App) GetLogFilePath() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("获取可执行文件路径失败: %v", err)
+	}
+	logDir := filepath.Dir(exe)
+	logPath := filepath.Join(logDir, "eaiser.log")
+	return logPath, nil
+}
+
+// ReadLogFile 读取日志文件内容
+func (a *App) ReadLogFile() (string, error) {
+	logPath, err := a.GetLogFilePath()
+	if err != nil {
+		return "", err
+	}
+
+	// 检查文件是否存在
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		return "", fmt.Errorf("日志文件不存在: %s", logPath)
+	}
+
+	// 读取文件内容
+	fileData, err := os.ReadFile(logPath)
+	if err != nil {
+		log.Printf("Failed to read log file: %v\n", err)
+		return "", fmt.Errorf("读取日志文件失败: %v", err)
+	}
+
+	return string(fileData), nil
+}
+
 // SaveImage 保存图片文件
 // imageDataBase64: base64 编码的图片数据（包含 data:image/xxx;base64, 前缀）
 // 返回: 相对路径，用于在 markdown 中引用
