@@ -53,6 +53,15 @@ export default function App() {
 
   useEffect(() => { refreshCategories() }, [])
 
+  // 当当前面板为 notes 时自动刷新目录（例如笔记编辑后目录结构可能变化）
+  useEffect(() => {
+    if (!panes.length) return
+    const current = panes.find(p => p.id === activePaneId) || panes[0]
+    if (current?.currentView === 'notes') {
+      refreshCategories()
+    }
+  }, [panes, activePaneId])
+
   useEffect(() => {
     if (panes.length && !panes.find(p => p.id === activePaneId)) {
       setActivePaneId(panes[0].id)
@@ -444,6 +453,7 @@ export default function App() {
                     <ContentViewer
                       item={pane.selectedItem}
                       categories={categories}
+                      onCategoryChanged={refreshCategories}
                       onEdit={({ item: it, data }) => {
                         const targetId = it?.id || data?.id
                         const targetCategory = it?.categoryId || data?.categoryId
@@ -461,11 +471,7 @@ export default function App() {
                       onClosePane={() => closePane(pane.id)}
                       canClose={canClosePane}
                       isActive={isActive}
-                      onOpenTOC={(headings, onHeadingClick) => {
-                        // 记录接收到的数据
-                        
-                        // 创建新的 pane 显示目录
-                        const newId = `pane-${Date.now()}`
+                      onOpenTOC={(headings, onHeadingClick, options = {}) => {
                         const sourcePaneId = pane.id // 保存源 pane ID
                         
                         // 创建一个包装的回调，只实现高亮功能
@@ -518,11 +524,46 @@ export default function App() {
                           }
                         }
                         
+                        // 只允许存在一个 TOC 目录面板：
+                        // - 如果已存在 TOC pane，则复用并更新其 tocData
+                        // - 否则创建新的 TOC pane
+                        // - 当 options.onlyUpdate 为 true 时，只同步已有 TOC，不自动创建或抢占焦点
                         setPanes(prev => {
-                          const idx = prev.findIndex(p => p.id === sourcePaneId)
-                          if (idx === -1) {
+                          if (!prev.length) return prev
+
+                          const sourceIdx = prev.findIndex(p => p.id === sourcePaneId)
+                          if (sourceIdx === -1) return prev
+
+                          // 查找是否已经存在 TOC 面板
+                          const existingTocIdx = prev.findIndex(p => p.currentView === 'toc')
+                          if (existingTocIdx !== -1) {
+                            const existingPane = prev[existingTocIdx]
+                            const next = prev.map((p, idx) =>
+                              idx === existingTocIdx
+                                ? {
+                                    ...p,
+                                    tocData: {
+                                      headings,
+                                      onHeadingClick: wrappedOnHeadingClick,
+                                      sourcePaneId,
+                                    },
+                                  }
+                                : p
+                            )
+                            // 仅在非同步模式下才切换焦点到 TOC 面板
+                            if (!options.onlyUpdate) {
+                              setActivePaneId(existingPane.id)
+                            }
+                            return next
+                          }
+
+                          // 仅同步模式下，不自动创建 TOC 面板
+                          if (options.onlyUpdate) {
                             return prev
                           }
+
+                          // 不存在 TOC 面板时，新建一个
+                          const newId = `pane-${Date.now()}`
                           const newPane = {
                             id: newId,
                             activeCategory: null,
@@ -531,24 +572,30 @@ export default function App() {
                             editingNote: null,
                             tocData: { headings, onHeadingClick: wrappedOnHeadingClick, sourcePaneId },
                           }
-                          const nextPanes = [...prev.slice(0, idx + 1), newPane, ...prev.slice(idx + 1)]
-                          
-                          
+                          const nextPanes = [
+                            ...prev.slice(0, sourceIdx + 1),
+                            newPane,
+                            ...prev.slice(sourceIdx + 1),
+                          ]
+
                           // 在同一个更新周期内更新宽度
                           setPaneWidths(prevWidths => {
-                            const base = prevWidths[idx] ?? 1
+                            const base = prevWidths[sourceIdx] ?? 1
                             const left = Math.max(base / 2, MIN_PANE_RATIO)
                             const right = Math.max(base - left, MIN_PANE_RATIO)
-                            const next = [...prevWidths.slice(0, idx), left, right, ...prevWidths.slice(idx + 1)]
+                            const next = [
+                              ...prevWidths.slice(0, sourceIdx),
+                              left,
+                              right,
+                              ...prevWidths.slice(sourceIdx + 1),
+                            ]
                             const total = next.reduce((a, b) => a + b, 0)
                             return next.map(w => w / total)
                           })
-                          
+
+                          setActivePaneId(newId)
                           return nextPanes
                         })
-                        
-                        setActivePaneId(newId)
-                        
                       }}
                     />
                   )
