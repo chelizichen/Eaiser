@@ -16,7 +16,7 @@ function extractContentPreview(content, maxLength = 150) {
   return text
 }
 
-export default function CategoryView({ activeCategory, onNavigate, reloadToken, categories, ensureUnlocked, onCategoryChanged }) {
+export default function CategoryView({ activeCategory, onNavigate, reloadToken, categories, ensureUnlocked, onCategoryChanged, isDarkMode = false }) {
   const [notes, setNotes] = useState([])
   const [loading, setLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
@@ -320,7 +320,13 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
       )}
 
       {notes.length > 0 && (
-        <Card title={`笔记 (${filteredNotes.length}/${notes.length})`} size="small" style={{background:"#2d2d2d"}} >
+        <Card 
+          title={`笔记 (${filteredNotes.length}/${notes.length})`} 
+          size="small" 
+          style={{
+            background: isDarkMode ? '#2d2d2d' : 'rgba(0,0,0,.02)'
+          }} 
+        >
           <div style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: 6 }}>
             {viewMode === 'card' ? (
               <div style={{ 
@@ -362,7 +368,7 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
                         position: 'relative',
                         borderRadius: 12,
                         overflow: 'hidden',
-                        border: '1px solid #525151',
+                        border: `1px solid ${isDarkMode ? '#525151' : 'rgb(245, 226, 226)'}`,
                         transition: 'all 0.3s ease',
                         breakInside: 'avoid', 
                         marginBottom: 20,

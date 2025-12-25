@@ -624,6 +624,7 @@ export default function App() {
                       categories={categories}
                       ensureUnlocked={ensureUnlocked}
                       onCategoryChanged={refreshCategories}
+                      isDarkMode={isDarkMode}
                     />
                   )
                 }
