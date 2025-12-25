@@ -22,6 +22,7 @@ export default function AIChatTab({
   const [mentionOptions, setMentionOptions] = useState([])
   const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 })
   const [selectedContexts, setSelectedContexts] = useState([]) // [{ type: 'category'|'note', id, name }]
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(-1) // 当前选中的菜单项索引
   const inputRef = useRef(null)
   const messagesEndRef = useRef(null)
   const mentionMenuRef = useRef(null)
@@ -113,6 +114,7 @@ export default function AIChatTab({
         )
         setMentionOptions(filtered)
         setShowMentionMenu(true)
+        setSelectedMentionIndex(filtered.length > 0 ? 0 : -1) // 默认选中第一项
         
         // 计算菜单位置（简化版，实际可以使用更精确的计算）
         if (inputRef.current) {
@@ -129,6 +131,7 @@ export default function AIChatTab({
     }
     
     setShowMentionMenu(false)
+    setSelectedMentionIndex(-1) // 重置选中索引
     
     // 解析内联格式的提及
     parseInlineMentions(value)
@@ -137,42 +140,166 @@ export default function AIChatTab({
   // 解析内联格式的提及 (@category:名称 或 @note:标题)
   const parseInlineMentions = (text) => {
     const contexts = []
-    // 修改正则：匹配 @category: 或 @note: 后直到下一个 @ 或行尾的所有内容（包括空格）
-    // 使用非贪婪匹配，遇到 @ 或行尾停止
-    const categoryRegex = /@category:([^@\n]+?)(?=\s|@|$)/g
-    const noteRegex = /@note:([^@\n]+?)(?=\s|@|$)/g
+    // 改进的正则：匹配 @category: 或 @note: 后直到下一个 @ 符号或行尾的所有内容（包括空格）
+    // 使用非贪婪匹配，匹配到下一个 @ 符号或行尾，而不是在空格处停止
+    const categoryRegex = /@category:([^@\n]+?)(?=@|$)/g
+    const noteRegex = /@note:([^@\n]+?)(?=@|$)/g
 
     console.log('[AIChatTab] parseInlineMentions 输入文本:', text)
     console.log('[AIChatTab] 可用目录列表:', categories.map(c => ({ id: c.id, name: c.name })))
+    console.log('[AIChatTab] 可用笔记列表:', notes.map(n => ({ id: n.id, title: n.title, type: n.type })))
     
     let match
     while ((match = categoryRegex.exec(text)) !== null) {
-      const name = match[1].trim() // 去除首尾空格
-      console.log(`[AIChatTab] 解析到目录名称: "${name}"`)
-      const cat = categories.find(c => c.name === name)
-      if (cat) {
-        console.log(`[AIChatTab] 找到目录: id=${cat.id}, name=${cat.name}`)
-        contexts.push({ type: 'category', id: cat.id, name: cat.name })
-      } else {
-        console.warn(`[AIChatTab] 未找到目录: "${name}"`)
-        // 尝试模糊匹配（包含关系）
-        const fuzzyMatch = categories.find(c => c.name.includes(name) || name.includes(c.name))
-        if (fuzzyMatch) {
-          console.log(`[AIChatTab] 模糊匹配到目录: id=${fuzzyMatch.id}, name=${fuzzyMatch.name}`)
-          contexts.push({ type: 'category', id: fuzzyMatch.id, name: fuzzyMatch.name })
+      let name = match[1].trim()
+      
+      // 尝试精确匹配和前缀匹配，找到最合适的目录名
+      // 如果匹配到的内容后面还有文本，尝试扩展匹配
+      const matchStart = match.index + '@category:'.length
+      const matchEnd = match.index + match[0].length
+      
+      // 尝试从文本中提取完整的目录名
+      // 查找下一个 @ 或行尾
+      const nextAt = text.indexOf('@', matchEnd)
+      const nextNewline = text.indexOf('\n', matchStart)
+      const textEnd = nextAt === -1 ? (nextNewline === -1 ? text.length : nextNewline) : Math.min(nextAt, nextNewline === -1 ? nextAt : nextNewline)
+      
+      // 提取从 @category: 到下一个 @ 或行尾的所有内容
+      let fullText = text.substring(matchStart, textEnd).trim()
+      
+      // 尝试精确匹配完整文本
+      let matchedCat = categories.find(c => c.name === fullText)
+      if (!matchedCat) {
+        // 尝试匹配原始匹配的内容
+        matchedCat = categories.find(c => c.name === name)
+      }
+      
+      // 如果还没找到，尝试前缀匹配
+      if (!matchedCat) {
+        const startsWithMatches = categories.filter(c => c.name.startsWith(name))
+        if (startsWithMatches.length > 0) {
+          // 选择最短的（最精确的匹配）
+          matchedCat = startsWithMatches.reduce((best, current) => 
+            current.name.length < best.name.length ? current : best
+          )
         }
+      }
+      
+      // 如果还没找到，尝试模糊匹配
+      if (!matchedCat) {
+        const fuzzyMatches = categories.filter(c => 
+          c.name.includes(name) || name.includes(c.name)
+        )
+        if (fuzzyMatches.length > 0) {
+          matchedCat = fuzzyMatches.reduce((best, current) => {
+            const bestScore = current.name.includes(name) ? (current.name.length - name.length) : Infinity
+            const currentScore = best.name.includes(name) ? (best.name.length - name.length) : Infinity
+            return currentScore < bestScore ? current : best
+          })
+        }
+      }
+      
+      if (matchedCat) {
+        console.log(`[AIChatTab] 找到目录: id=${matchedCat.id}, name=${matchedCat.name} (匹配文本: "${name}", 完整文本: "${fullText}")`)
+        contexts.push({ type: 'category', id: matchedCat.id, name: matchedCat.name })
+      } else {
+        console.warn(`[AIChatTab] 未找到目录: "${name}" (完整文本: "${fullText}")`)
       }
     }
 
+    // 重置正则表达式的 lastIndex，避免全局匹配的问题
+    noteRegex.lastIndex = 0
     while ((match = noteRegex.exec(text)) !== null) {
-      const title = match[1].trim()
-      console.log(`[AIChatTab] 解析到笔记标题: "${title}"`)
-      const note = notes.find(n => n.title === title)
-      if (note) {
-        console.log(`[AIChatTab] 找到笔记: id=${note.id}, title=${note.title}`)
-        contexts.push({ type: 'note', id: note.id, name: note.title })
+      let title = match[1].trim()
+      
+      // 尝试精确匹配和前缀匹配，找到最合适的笔记标题
+      // 如果匹配到的内容后面还有文本，尝试扩展匹配
+      const matchStart = match.index + '@note:'.length
+      const matchEnd = match.index + match[0].length
+      
+      // 查找下一个 @ 或行尾
+      const nextAt = text.indexOf('@', matchEnd)
+      const nextNewline = text.indexOf('\n', matchStart)
+      const textEnd = nextAt === -1 ? (nextNewline === -1 ? text.length : nextNewline) : Math.min(nextAt, nextNewline === -1 ? nextAt : nextNewline)
+      
+      // 提取从 @note: 到下一个 @ 或行尾的所有内容
+      let fullText = text.substring(matchStart, textEnd).trim()
+      
+      // 尝试精确匹配完整文本
+      let matchedNote = notes.find(n => n.type !== 1 && n.title === fullText)
+      
+      // 如果完整文本不匹配，尝试从完整文本中提取可能的笔记标题
+      // 例如："BoeLink 12-25  25 号我干了啥1" -> 尝试 "BoeLink 12-25"
+      if (!matchedNote && fullText && fullText.length > title.length) {
+        // 尝试匹配完整文本的前几个词（逐步增加）
+        const words = fullText.split(/\s+/)
+        for (let i = words.length; i > 0; i--) {
+          const potentialTitle = words.slice(0, i).join(' ')
+          matchedNote = notes.find(n => n.type !== 1 && n.title === potentialTitle)
+          if (matchedNote) {
+            console.log(`[AIChatTab] 通过词匹配找到笔记: "${potentialTitle}" -> id=${matchedNote.id}, title=${matchedNote.title}`)
+            break
+          }
+        }
+      }
+      
+      if (!matchedNote) {
+        // 尝试匹配原始匹配的内容
+        matchedNote = notes.find(n => n.type !== 1 && n.title === title)
+      }
+      
+      // 如果还没找到，尝试前缀匹配（这是关键：优先匹配以 title 开头的笔记）
+      if (!matchedNote) {
+        const startsWithMatches = notes.filter(n => 
+          n.type !== 1 && n.title.startsWith(title)
+        )
+        if (startsWithMatches.length > 0) {
+          // 如果有完整文本，优先选择与完整文本最接近的匹配
+          // 例如：title="BoeLink", fullText="BoeLink 12-25" 时，优先选择 "BoeLink 12-25"
+          if (fullText && fullText.startsWith(title)) {
+            // 尝试找到与完整文本最接近的匹配（长度最接近，且是完整文本的前缀）
+            const validMatches = startsWithMatches.filter(n => fullText.startsWith(n.title))
+            if (validMatches.length > 0) {
+              // 选择最长的匹配（最完整的匹配）
+              matchedNote = validMatches.reduce((best, current) => 
+                current.title.length > best.title.length ? current : best
+              )
+            } else {
+              // 如果没有完全匹配的，选择与完整文本长度最接近的
+              matchedNote = startsWithMatches.reduce((best, current) => {
+                const bestDiff = Math.abs(best.title.length - fullText.length)
+                const currentDiff = Math.abs(current.title.length - fullText.length)
+                return currentDiff < bestDiff ? current : best
+              })
+            }
+          } else {
+            // 没有完整文本时，选择最短的（最精确的匹配）
+            matchedNote = startsWithMatches.reduce((best, current) => 
+              current.title.length < best.title.length ? current : best
+            )
+          }
+        }
+      }
+      
+      // 如果还没找到，尝试模糊匹配
+      if (!matchedNote) {
+        const fuzzyMatches = notes.filter(n => 
+          n.type !== 1 && (n.title.includes(title) || title.includes(n.title))
+        )
+        if (fuzzyMatches.length > 0) {
+          matchedNote = fuzzyMatches.reduce((best, current) => {
+            const bestScore = current.title.includes(title) ? (current.title.length - title.length) : Infinity
+            const currentScore = best.title.includes(title) ? (best.title.length - title.length) : Infinity
+            return currentScore < bestScore ? current : best
+          })
+        }
+      }
+      
+      if (matchedNote) {
+        console.log(`[AIChatTab] 找到笔记: id=${matchedNote.id}, title=${matchedNote.title} (匹配文本: "${title}", 完整文本: "${fullText}")`)
+        contexts.push({ type: 'note', id: matchedNote.id, name: matchedNote.title })
       } else {
-        console.warn(`[AIChatTab] 未找到笔记: "${title}"`)
+        console.warn(`[AIChatTab] 未找到笔记: "${title}" (完整文本: "${fullText}")`)
       }
     }
 
@@ -206,8 +333,18 @@ export default function AIChatTab({
       // 添加关联上下文
       const existing = selectedContexts.find(c => c.type === option.type && c.id === option.id)
       if (!existing) {
-        setSelectedContexts(prev => [...prev, { type: option.type, id: option.id, name: option.name }])
+        console.log(`[AIChatTab] handleMentionSelect 添加上下文: type=${option.type}, id=${option.id}, name=${option.name}`)
+        setSelectedContexts(prev => {
+          const updated = [...prev, { type: option.type, id: option.id, name: option.name }]
+          console.log('[AIChatTab] handleMentionSelect 更新后的上下文:', updated)
+          return updated
+        })
       }
+      
+      // 重新解析输入文本，确保同步
+      setTimeout(() => {
+        parseInlineMentions(newValue)
+      }, 0)
     }
     
     setShowMentionMenu(false)
@@ -215,8 +352,10 @@ export default function AIChatTab({
     // 聚焦输入框
     setTimeout(() => {
       inputRef.current?.focus()
-      const newCursorPos = inputValue.length + value.length + 1
-      inputRef.current?.resizableTextArea?.textArea?.setSelectionRange(newCursorPos, newCursorPos)
+      const newCursorPos = lastAtIndex + value.length + 1
+      if (inputRef.current?.resizableTextArea?.textArea) {
+        inputRef.current.resizableTextArea.textArea.setSelectionRange(newCursorPos, newCursorPos)
+      }
     }, 0)
   }
 
@@ -360,11 +499,81 @@ export default function AIChatTab({
 
   // 处理键盘事件
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // 如果菜单显示，处理上下键和回车键
+    if (showMentionMenu && mentionOptions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSelectedMentionIndex(prev => {
+          const next = prev < mentionOptions.length - 1 ? prev + 1 : 0
+          // 滚动到选中项
+          scrollToMentionItem(next)
+          return next
+        })
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSelectedMentionIndex(prev => {
+          const next = prev > 0 ? prev - 1 : mentionOptions.length - 1
+          // 滚动到选中项
+          scrollToMentionItem(next)
+          return next
+        })
+        return
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        if (selectedMentionIndex >= 0 && selectedMentionIndex < mentionOptions.length) {
+          const selectedOption = mentionOptions[selectedMentionIndex]
+          handleMentionSelect(selectedOption.value, selectedOption)
+        } else {
+          // 如果没有选中项，选择第一项
+          if (mentionOptions.length > 0) {
+            handleMentionSelect(mentionOptions[0].value, mentionOptions[0])
+          }
+        }
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setShowMentionMenu(false)
+        setSelectedMentionIndex(-1)
+        return
+      }
+    }
+    
+    // 普通回车键处理
+    if (e.key === 'Enter' && !e.shiftKey && !showMentionMenu) {
       e.preventDefault()
       handleSend()
     }
   }
+
+  // 滚动到选中的菜单项
+  const scrollToMentionItem = (index) => {
+    if (!mentionMenuRef.current) return
+    
+    const menuElement = mentionMenuRef.current
+    const items = menuElement.querySelectorAll('[data-mention-item]')
+    if (items[index]) {
+      // 使用 scrollIntoView 确保选中项在可视区域内
+      items[index].scrollIntoView({ 
+        block: 'nearest', 
+        behavior: 'smooth',
+        inline: 'nearest'
+      })
+    }
+  }
+
+  // 当菜单选项变化时，重置选中索引
+  useEffect(() => {
+    if (showMentionMenu && mentionOptions.length > 0) {
+      // 如果当前选中的索引超出范围，重置为 0
+      if (selectedMentionIndex >= mentionOptions.length || selectedMentionIndex < 0) {
+        setSelectedMentionIndex(0)
+      }
+    }
+  }, [mentionOptions, showMentionMenu])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%',minHeight:'60vh' }}>
@@ -537,15 +746,23 @@ export default function AIChatTab({
                 {mentionOptions.map((opt, idx) => (
                   <div
                     key={idx}
-                    onClick={() => handleMentionSelect(opt.value, opt)}
+                    data-mention-item
+                    onClick={() => {
+                      console.log('[AIChatTab] 点击提及选项:', opt)
+                      handleMentionSelect(opt.value, opt)
+                    }}
+                    onMouseEnter={() => setSelectedMentionIndex(idx)}
                     style={{
                       padding: '8px 12px',
                       cursor: 'pointer',
                       color: token.colorText,
-                      borderBottom: idx < mentionOptions.length - 1 ? `1px solid ${token.colorBorderSecondary}` : 'none'
+                      backgroundColor: selectedMentionIndex === idx ? token.colorPrimaryBg : 'transparent',
+                      borderBottom: idx < mentionOptions.length - 1 ? `1px solid ${token.colorBorderSecondary}` : 'none',
+                      transition: 'background-color 0.2s'
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = token.colorFillSecondary}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    onMouseLeave={() => {
+                      // 鼠标离开时不重置选中索引，保持键盘导航的状态
+                    }}
                   >
                     {opt.label}
                   </div>
