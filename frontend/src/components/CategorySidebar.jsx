@@ -142,26 +142,26 @@ export default function CategorySidebar({ categories, activeCategory, onSelect, 
       }
     })
     // Append file nodes under each category if available（仅笔记）
-    for (const c of list) {
-      const entry = filesByCategory[c.id]
-      if (entry) { // 已经加载过的直接展开
-        const parent = map.get(c.id)
-        const children = parent.children
-        // Notes
-        entry.notes.forEach(n => {
-          if (n.categoryId !== c.id) return
-          children.push({
-            key: `note-${n.id}`,
-            title: (
-              <Tooltip title={n.title}>
-                <span>{truncate(n.title)}</span>
-              </Tooltip>
-            ),
-            file: { type: 'note', id: n.id, categoryId: c.id, title: n.title }
-          })
-        })
-      }
-    }
+    // for (const c of list) {
+    //   const entry = filesByCategory[c.id]
+    //   if (entry) { // 已经加载过的直接展开
+    //     const parent = map.get(c.id)
+    //     const children = parent.children
+    //     // Notes
+    //     entry.notes.forEach(n => {
+    //       if (n.categoryId !== c.id) return
+    //       children.push({
+    //         key: `note-${n.id}`,
+    //         title: (
+    //           <Tooltip title={n.title}>
+    //             <span>{truncate(n.title)}</span>
+    //           </Tooltip>
+    //         ),
+    //         file: { type: 'note', id: n.id, categoryId: c.id, title: n.title }
+    //       })
+    //     })
+    //   }
+    // }
     return roots
   }
 

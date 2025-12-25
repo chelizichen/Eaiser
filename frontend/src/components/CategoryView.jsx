@@ -3,6 +3,18 @@ import { Button, Card, List, Typography, Empty, Input, Alert, message, Modal, Se
 import { FileTextOutlined, SearchOutlined, AppstoreOutlined, UnorderedListOutlined, FilePdfOutlined, FolderOutlined, EditOutlined, DeleteOutlined, CodeOutlined, PlayCircleOutlined, RobotOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import extractFirstImageUrl from '../lib/extractFirstImageurl'
+import striptags from 'striptags'
+
+// 提取内容预览文本（去除 markdown 语法，返回纯文本）
+function extractContentPreview(content, maxLength = 150) {
+  let text = striptags(content)
+  // 截取指定长度
+  if (text.length > maxLength) {
+    text = text.substring(0, maxLength) + '...'
+  }
+  
+  return text
+}
 
 export default function CategoryView({ activeCategory, onNavigate, reloadToken, categories, ensureUnlocked, onCategoryChanged }) {
   const [notes, setNotes] = useState([])
@@ -308,18 +320,23 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
       )}
 
       {notes.length > 0 && (
-        <Card title={`笔记 (${filteredNotes.length}/${notes.length})`} size="small">
+        <Card title={`笔记 (${filteredNotes.length}/${notes.length})`} size="small" style={{background:"#2d2d2d"}} >
           <div style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: 6 }}>
             {viewMode === 'card' ? (
               <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 260px))', 
-                gap: 16 
+                columnGap: 20,
+                columnFill: 'balance',  // 平衡各列高度
+                columns: '280px auto',  // 关键：每列最小 280px，自动创建列数（可调整为 300px 等）
               }}>
                 {filteredNotes.map((note) => {
                   const isPDF = note.type === 1
                   const isScript = note.type === 2
-                  const bgUrl = (isPDF || isScript) ? null : extractFirstImageUrl(note.contentMd)
+                  const imageUrl = (isPDF || isScript) ? null : extractFirstImageUrl(note.contentMd)
+                  const contentPreview = extractContentPreview(note.contentMd || '')
+                  const contentPreviewToArr = contentPreview.split('\n')
+                  const categoryName = categoryMap.get(note.categoryId) || '未知目录'
+                  const updatedTime = dayjs(note.updatedAt).format('YYYY-MM-DD HH:mm')
+                  
                   const openNote = async (mode) => {
                     const cid = note.categoryId ?? activeCategory
                     if (ensureUnlocked && cid != null) {
@@ -334,6 +351,7 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
                       ...(mode === 'notes' ? { mode: 'edit' } : {})
                     })
                   }
+                  
                   return (
                     <Card
                       key={note.id}
@@ -342,37 +360,38 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
                       style={{ 
                         cursor: 'pointer',
                         position: 'relative',
-                        height: 220,
-                        backgroundImage: bgUrl ? `url(${bgUrl})` : undefined,
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center',
-                        backgroundRepeat: 'no-repeat',
-                        // 只有有背景图时才强制白色文字，避免与浅色卡片背景冲突
-                        color: bgUrl ? '#fff' : undefined,
+                        borderRadius: 12,
+                        overflow: 'hidden',
+                        border: '1px solid #525151',
+                        transition: 'all 0.3s ease',
+                        breakInside: 'avoid', 
+                        marginBottom: 20,
+                        width: '100%',                // 新增：确保卡片填满列宽
+                        maxWidth: 'none',             // 移除 maxWidth 限制，否则可能不响应
+                        minWidth: 'auto',             // 移除 minWidth，或设小值
+                        display: 'inline-block',      // 新增：关键！许多教程推荐，帮助 columns 正确流动
+                        boxSizing: 'border-box',
                       }}
                       bodyStyle={{
-                        padding: 12,
-                        // 有背景图时加一层更深的渐变遮罩，保证文字可读
-                        background : bgUrl ? 'linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0.25))'  : 'undefined',
-                        // background: bgUrl 
-                        //   ? 'linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0.25))' 
-                        //   : isPDF ? 'linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%)' : undefined,
-                        borderRadius: 8,
+                        padding: 0,
                       }}
                       onClick={() => openNote(null)}
                     >
-                      {/* 右上角按钮 */}
+                      {/* 右上角操作按钮 */}
                       {!isPDF && (
                         <div
                           style={{
                             position: 'absolute',
-                            top: 4,
-                            right: 4,
+                            top: 8,
+                            right: 8,
                             display: 'flex',
-                            flexDirection: 'column',
                             gap: 4,
-                            alignItems: 'flex-end',
+                            zIndex: 10,
+                            borderRadius: 6,
+                            padding: '4px 2px',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
                           }}
+                          onClick={(e) => e.stopPropagation()}
                         >
                           {isScript && (
                             <Button
@@ -381,11 +400,10 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
                               icon={<PlayCircleOutlined />}
                               style={{
                                 color: '#52c41a',
-                                padding: '2px 4px',
+                                padding: '2px 6px',
                               }}
                               onClick={(e) => {
                                 e.stopPropagation()
-                                // 导航到查看页面，并标记需要自动执行
                                 const cid = note.categoryId ?? activeCategory
                                 if (ensureUnlocked && cid != null) {
                                   ensureUnlocked(cid, '内容').then((ok) => {
@@ -416,8 +434,8 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
                             type="text"
                             icon={<EditOutlined />}
                             style={{
-                              color: '#00aeea',
-                              padding: '2px 4px',
+                              color: '#1890ff',
+                              padding: '2px 6px',
                             }}
                             onClick={(e) => {
                               e.stopPropagation()
@@ -430,8 +448,8 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
                             type="text"
                             icon={<FolderOutlined />}
                             style={{
-                              color: '#00aeea',
-                              padding: '2px 4px',
+                              color: '#1890ff',
+                              padding: '2px 6px',
                             }}
                             onClick={(e) => {
                               e.stopPropagation()
@@ -441,21 +459,109 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
                           />
                         </div>
                       )}
-                      <div>
-                        <Typography.Text strong style={{ fontSize: 16, display: 'block', marginBottom: 8,color: bgUrl ? 'rgba(255,255,255,0.85)' : undefined }}>
-                          {isPDF && <FilePdfOutlined style={{ marginRight: 6, color: '#ff4d4f' }} />}
-                          {note.type === 2 && <CodeOutlined style={{ marginRight: 6, color: '#1890ff' }} />}
+                      
+                      {/* PDF 或脚本类型的图标占位 */}
+                      {!imageUrl && (isPDF || isScript) && (
+                        <div
+                          style={{
+                            width: '100%',
+                            height: 180,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: isPDF ? '#fff1f0' : '#e6f7ff',
+                          }}
+                        >
+                          {isPDF && <FilePdfOutlined style={{ fontSize: 48, color: '#ff4d4f' }} />}
+                          {isScript && <CodeOutlined style={{ fontSize: 48, color: '#1890ff' }} />}
+                        </div>
+                      )}
+                      
+                      {/* 内容区域 */}
+                      <div style={{ padding: 16 }}>
+                        {/* 顶部：所属目录、最后更新时间 */}
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'flex-start', 
+                          alignItems: 'center',
+                          marginBottom: 12,
+                          gap: 12,
+                        }}>
+                          <Typography.Text 
+                            type="secondary" 
+                            style={{ fontSize: 12 }}
+                          >
+                            {categoryName}
+                          </Typography.Text>
+                          <Typography.Text 
+                            type="secondary" 
+                            style={{ fontSize: 12 }}
+                          >
+                            {updatedTime}
+                          </Typography.Text>
+                        </div>
+                        
+                        {/* 标题 */}
+                        <Typography.Title 
+                          level={5} 
+                          style={{ 
+                            margin: 0, 
+                            marginBottom: 12,
+                            fontSize: 16,
+                            fontWeight: 600,
+                            lineHeight: 1.4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                          }}
+                        >
+                          {isPDF && <FilePdfOutlined style={{ fontSize: 16, color: '#ff4d4f' }} />}
+                          {isScript && <CodeOutlined style={{ fontSize: 16, color: '#1890ff' }} />}
                           {note.title}
-                        </Typography.Text>
-                        <Typography.Text style={{ fontSize: 12, display: 'block', color: bgUrl ? 'rgba(255,255,255,0.75)' : undefined }}>
-                          归属目录: {categoryMap.get(note.categoryId) || '未知目录'}
-                        </Typography.Text>
-                        <Typography.Text style={{ fontSize: 12, display: 'block', color: bgUrl ? 'rgba(255,255,255,0.85)' : undefined }}>
-                          创建: {dayjs(note.createdAt).format('YYYY-MM-DD HH:mm')}
-                        </Typography.Text>
-                        <Typography.Text style={{ fontSize: 12, display: 'block', color: bgUrl ? 'rgba(255,255,255,0.85)' : undefined }}>
-                          更新: {dayjs(note.updatedAt).format('YYYY-MM-DD HH:mm')}
-                        </Typography.Text>
+                        </Typography.Title>
+                                              {/* 图片展示区域 */}
+                      {imageUrl && (
+                        <div
+                          style={{
+                            width: '100%',
+                            height: 180,
+                            overflow: 'hidden',
+                            backgroundColor: '#f5f5f5',
+                          }}
+                        >
+                          <img
+                            src={imageUrl}
+                            alt={note.title}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                            }}
+                            onError={(e) => {
+                              e.target.style.display = 'none'
+                            }}
+                          />
+                        </div>
+                      )}
+                        {/* 内容预览 */}
+                        {contentPreviewToArr && contentPreviewToArr.length && (contentPreviewToArr.map(v=>{
+                          return <Typography.Text 
+                                  type="secondary"
+                                  style={{ 
+                                    fontSize: 13,
+                                    lineHeight: 1.6,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 3,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    marginTop:12,
+                                  }}
+                                >
+                                  {v}
+                              </Typography.Text>
+                          })
+                        )}
                       </div>
                     </Card>
                   )
