@@ -51,6 +51,8 @@ export function ListNotes(arg1:any):Promise<Array<backend.Note>>;
 
 export function LogFrontend(arg1:string):Promise<void>;
 
+export function MigrateBase64ImagesToLocal():Promise<Record<string, any>>;
+
 export function ReadLogFile():Promise<string>;
 
 export function RequireBiometric(arg1:string):Promise<void>;

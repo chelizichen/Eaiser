@@ -100,7 +100,7 @@ html, body, #root { height: 100vh;overflow: hidden; }
 .theme-light .hljs,
 .theme-light .viewer-content pre,
 .theme-light .viewer-content code {
-  padding: 16px;
+  /* padding: 4px; */
   background: #f6f8fa;
   color: #24292e;
   border: 1px solid #e5e7eb;
@@ -109,7 +109,7 @@ html, body, #root { height: 100vh;overflow: hidden; }
 .theme-dark .hljs,
 .theme-dark .viewer-content pre,
 .theme-dark .viewer-content code {
-  padding: 16px;
+  /* padding: 4px; */
   background: #0d1117;
   color: #c9d1d9;
   border: 1px solid #eee01d;

@@ -3,6 +3,7 @@ import { Button, Typography, Image, Select, Modal, message, Card, Alert, Collaps
 import { EditOutlined, ColumnWidthOutlined, CloseOutlined, UnorderedListOutlined, FolderOutlined, PlayCircleOutlined, CodeOutlined } from '@ant-design/icons'
 import { renderMarkdown } from '../lib/markdown'
 import { extractHeadings } from '../lib/extractHeadings'
+import { processMarkdownHtml } from '../lib/imageUtils'
 import PDFViewer from './PDFViewer'
 import ErrorBoundary from './ErrorBoundary'
 import 'highlight.js/styles/github.css'
@@ -19,6 +20,7 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
   const [selectedCategoryId, setSelectedCategoryId] = useState(null)
   const [executing, setExecuting] = useState(false)
   const [execResult, setExecResult] = useState(null)
+  const [processedHtml, setProcessedHtml] = useState('')
 
   async function load() {
     if (!item) return
@@ -95,6 +97,23 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
   // 计算派生值（必须在所有 hooks 之前，但可以在 useEffect 之后）
   const raw = data?.contentMd || ''
   const isHTML = raw.trim().startsWith('<')
+  const html = isHTML ? raw : renderMarkdown(raw)
+  
+  // 处理本地图片
+  useEffect(() => {
+    const processLocalImages = async () => {
+      if (!html || !data || data.type === 1 || data.type === 2) {
+        setProcessedHtml(html || '')
+        return
+      }
+      
+      // 使用 processMarkdownHtml 处理，它会从原始 Markdown 中恢复丢失的图片 src
+      const processedHtml = await processMarkdownHtml(raw, html)
+      setProcessedHtml(processedHtml)
+    }
+    
+    processLocalImages()
+  }, [html, raw, data])
   
   // 提取标题（必须在组件顶层调用，不能在条件渲染中）
   const headings = useMemo(() => {
@@ -653,8 +672,6 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
     }
 
     // 普通笔记类型
-    const html = isHTML ? raw : renderMarkdown(raw)
-    
     return (
       <ErrorBoundary>
         <div className="pane-viewer">
@@ -719,7 +736,7 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
             <div 
               ref={contentRef}
               className="viewer-content" 
-              dangerouslySetInnerHTML={{ __html: html }} 
+              dangerouslySetInnerHTML={{ __html: processedHtml || html }} 
             />
           </div>
           {/* 图片预览 */}

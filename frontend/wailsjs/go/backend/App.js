@@ -98,6 +98,10 @@ export function LogFrontend(arg1) {
   return window['go']['backend']['App']['LogFrontend'](arg1);
 }
 
+export function MigrateBase64ImagesToLocal() {
+  return window['go']['backend']['App']['MigrateBase64ImagesToLocal']();
+}
+
 export function ReadLogFile() {
   return window['go']['backend']['App']['ReadLogFile']();
 }

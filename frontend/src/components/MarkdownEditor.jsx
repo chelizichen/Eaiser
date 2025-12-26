@@ -1,167 +1,299 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import ReactQuill from 'react-quill'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
+import { Input } from 'antd'
+import TurndownService from 'turndown'
+import { gfm } from 'turndown-plugin-gfm'
+import { renderMarkdown } from '../lib/markdown'
+import { processMarkdownHtml } from '../lib/imageUtils'
 import 'highlight.js/styles/github.css'
-import 'react-quill/dist/quill.snow.css'
+
+const { TextArea } = Input
+
+// 初始化 Turndown 服务（用于 HTML 转 Markdown）
+const turndownService = new TurndownService({
+  headingStyle: 'atx', // 使用 # 格式的标题
+  codeBlockStyle: 'fenced', // 使用 ``` 格式的代码块
+  bulletListMarker: '-', // 使用 - 作为列表标记
+})
+turndownService.use(gfm) // 支持 GitHub Flavored Markdown
 
 function MarkdownEditor({ valueMD, onChangeMD, height = '60vh' }) {
-  const quillRef = useRef(null)
-  const [quillContent, setQuillContent] = useState('')
+  const textareaRef = useRef(null)
+  const [markdownContent, setMarkdownContent] = useState('')
+  const lastValueMDRef = useRef('')
+  const [leftWidth, setLeftWidth] = useState(50) // 左侧编辑器宽度百分比
+  const [isResizing, setIsResizing] = useState(false)
+  const containerRef = useRef(null)
 
   // 初始化/变更时同步外部传入的内容
   useEffect(() => {
-    if (!valueMD) return
-    setQuillContent(valueMD)
+    // 如果 valueMD 没有变化，不更新
+    if (valueMD === lastValueMDRef.current) {
+      return
+    }
+    lastValueMDRef.current = valueMD || ''
+    
+    if (!valueMD) {
+      setMarkdownContent('')
+      return
+    }
+    
+    // 判断是 HTML 还是 Markdown
+    // 如果包含 HTML 标签，则认为是 HTML，需要转换
+    const isHTML = /<[a-z][\s\S]*>/i.test(valueMD)
+    
+    if (isHTML) {
+      // HTML 转 Markdown
+      try {
+        const markdown = turndownService.turndown(valueMD)
+        setMarkdownContent(markdown)
+      } catch (e) {
+        console.error('HTML to Markdown conversion failed:', e)
+        setMarkdownContent(valueMD) // 转换失败时使用原值
+      }
+    } else {
+      // 已经是 Markdown，直接使用
+      setMarkdownContent(valueMD)
+    }
   }, [valueMD])
 
-  // 安全的日志工具
-  const logFrontend = useCallback((payload) => {
-    try {
-      window?.go?.backend?.App?.LogFrontend?.(JSON.stringify(payload))
-    } catch (err) {
-      // ignore
-    }
-  }, [])
+  // 处理文本变化
+  const handleChange = useCallback((e) => {
+    const newValue = e.target.value
+    setMarkdownContent(newValue)
+    // 直接输出 Markdown 格式
+    onChangeMD && onChangeMD(newValue)
+  }, [onChangeMD])
 
-  // 粘贴图片处理
-  const handlePaste = useCallback((event) => {
+  // 处理粘贴图片
+  const handlePaste = useCallback(async (event) => {
     try {
       const items = event.clipboardData?.items
-      if (!items) {
-        logFrontend({ event: 'MarkdownEditor.handlePaste.noItems' })
-        return
-      }
-
-      const editor = quillRef.current?.getEditor?.()
-      if (!editor) {
-        logFrontend({ event: 'MarkdownEditor.handlePaste.noEditor' })
-        return
-      }
-
-      const itemTypes = Array.from(items).map(i => i.type)
-      logFrontend({
-        event: 'MarkdownEditor.handlePaste.start',
-        itemTypes,
-        currentHtmlLength: editor.root?.innerHTML?.length || 0,
-      })
+      if (!items) return
 
       let handled = false
       for (let item of items) {
         if (item.type.indexOf('image') === 0) {
           handled = true
-          event.preventDefault() // 阻止 webkit-fake-url
+          event.preventDefault()
           const blob = item.getAsFile()
-          if (!blob) {
-            logFrontend({ event: 'MarkdownEditor.handlePaste.noBlob' })
-            continue
-          }
+          if (!blob) continue
+
           const reader = new FileReader()
-          reader.onload = (e) => {
+          reader.onload = async (e) => {
             try {
-              const src = e.target?.result
-              if (!src) {
-                logFrontend({ event: 'MarkdownEditor.handlePaste.noSrc' })
-                return
+              const base64Data = e.target?.result
+              if (!base64Data) return
+
+              // 保存图片到本地（先传给后台保存）
+              try {
+                const relativePath = await window.go.backend.App.SaveImage(base64Data)
+                // 使用 local://images/ 前缀格式
+                const imageMarkdown = `![image](local://images/${relativePath})\n`
+                
+                // 在光标位置插入图片 Markdown
+                const textarea = textareaRef.current?.resizableTextArea?.textArea
+                if (textarea) {
+                  const start = textarea.selectionStart
+                  const end = textarea.selectionEnd
+                  const text = markdownContent
+                  const newText = text.substring(0, start) + imageMarkdown + text.substring(end)
+                  setMarkdownContent(newText)
+                  onChangeMD && onChangeMD(newText)
+                  
+                  // 设置光标位置
+                  setTimeout(() => {
+                    const newPos = start + imageMarkdown.length
+                    textarea.setSelectionRange(newPos, newPos)
+                    textarea.focus()
+                  }, 0)
+                }
+              } catch (err) {
+                console.error('Save image failed:', err)
+                // 如果保存失败，使用 base64
+                const imageMarkdown = `![image](${base64Data})\n`
+                const textarea = textareaRef.current?.resizableTextArea?.textArea
+                if (textarea) {
+                  const start = textarea.selectionStart
+                  const end = textarea.selectionEnd
+                  const text = markdownContent
+                  const newText = text.substring(0, start) + imageMarkdown + text.substring(end)
+                  setMarkdownContent(newText)
+                  onChangeMD && onChangeMD(newText)
+                }
               }
-              const range = editor.getSelection() || { index: editor.getLength(), length: 0 }
-              editor.insertEmbed(range.index, 'image', src, 'user')
-              editor.setSelection(range.index + 1, 0)
-              const next = editor.root.innerHTML
-              setQuillContent(next)
-              onChangeMD && onChangeMD(next)
-              logFrontend({
-                event: 'MarkdownEditor.handlePaste.inserted',
-                nextLength: next.length,
-                rangeIndex: range.index,
-              })
             } catch (err) {
-              logFrontend({ event: 'MarkdownEditor.handlePaste.insertError', message: err?.message, stack: err?.stack })
+              console.error('Paste image error:', err)
             }
           }
           reader.readAsDataURL(blob)
         }
       }
-
-      if (!handled) {
-        logFrontend({ event: 'MarkdownEditor.handlePaste.noImageHandled', itemTypes })
-      }
     } catch (err) {
-      logFrontend({ event: 'MarkdownEditor.handlePaste.error', message: err?.message, stack: err?.stack })
+      console.error('Handle paste error:', err)
     }
-  }, [onChangeMD, logFrontend])
+  }, [markdownContent, onChangeMD])
 
-  // 注册/卸载粘贴事件
+  // 注册粘贴事件
   useEffect(() => {
-    logFrontend({ event: 'MarkdownEditor.mount', valueMDLength: (valueMD || '').length })
-    window.addEventListener('paste', handlePaste)
+    const textarea = textareaRef.current?.resizableTextArea?.textArea
+    if (textarea) {
+      textarea.addEventListener('paste', handlePaste)
     return () => {
-      window.removeEventListener('paste', handlePaste)
-      logFrontend({ event: 'MarkdownEditor.unmount' })
-    }
-  }, [handlePaste, logFrontend, valueMD])
-  const modules = {
-    toolbar: [
-      // 支持 H1~H6 及正文
-      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-      ['bold', 'italic', 'underline', 'strike'],
-      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-      [{ 'align': [] }],
-      ['code-block'],
-      ['link', 'image'],
-      ['clean']
-    ],
-  };
-
-  // 快捷键 Cmd/Ctrl + 1~6 切换标题级别
-  useEffect(() => {
-    const editor = quillRef.current?.getEditor?.()
-    if (!editor || !editor.root) return
-
-    const handler = (e) => {
-      if (!(e.metaKey || e.ctrlKey)) return
-      const key = e.key
-      if (key >= '1' && key <= '6') {
-        e.preventDefault()
-        const level = parseInt(key, 10)
-        const currentFormat = editor.getFormat() || {}
-        const currentHeader = currentFormat.header
-        const target = currentHeader === level ? false : level
-        editor.format('header', target, 'user')
-        const next = editor.root.innerHTML
-        setQuillContent(next)
-        onChangeMD && onChangeMD(next)
-        logFrontend({ event: 'MarkdownEditor.shortcut.header', level, target })
+        textarea.removeEventListener('paste', handlePaste)
       }
     }
+  }, [handlePaste])
 
-    editor.root.addEventListener('keydown', handler)
-    return () => {
-      editor.root.removeEventListener('keydown', handler)
+  // 处理拖拽调整大小
+  const handleMouseDown = useCallback((e) => {
+    e.preventDefault()
+    setIsResizing(true)
+  }, [])
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizing || !containerRef.current) return
+      
+      const container = containerRef.current
+      const rect = container.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const percentage = (x / rect.width) * 100
+      
+      // 限制在 20% 到 80% 之间
+      const clampedPercentage = Math.max(20, Math.min(80, percentage))
+      setLeftWidth(clampedPercentage)
     }
-  }, [onChangeMD, logFrontend])
-  const formats = [
-    'header',
-    'bold', 'italic', 'underline', 'strike',
-    'list', 'bullet',
-    'align',
-    'code-block',
-    'link', 'image',
-  ];
-  const handleChange = (value) => {
-    setQuillContent(value);
-    onChangeMD && onChangeMD(value);
-  };
+
+    const handleMouseUp = () => {
+      setIsResizing(false)
+    }
+
+    if (isResizing) {
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove)
+        window.removeEventListener('mouseup', handleMouseUp)
+      }
+    }
+  }, [isResizing])
+
+  // 渲染预览内容
+  const [previewHtml, setPreviewHtml] = useState('')
+
+  // 处理本地图片并更新预览
+  useEffect(() => {
+    const processPreview = async () => {
+      const html = renderMarkdown(markdownContent)
+      const processedHtml = await processMarkdownHtml(markdownContent, html, {
+        imageStyle: { width: '100%', margin: '12px 0' }
+      })
+      setPreviewHtml(processedHtml)
+    }
+    
+    processPreview()
+  }, [markdownContent])
 
   return (
-    <div className="editor-wrapper" style={{ height }}>
-      <ReactQuill
-        ref={quillRef}
-        theme="snow"
-        modules={modules}
-        formats={formats}
-        value={quillContent}
+    <div 
+      ref={containerRef}
+      className="editor-wrapper" 
+      style={{ 
+        height, 
+        display: 'flex', 
+        flexDirection: 'row', 
+        position: 'relative',
+        userSelect: isResizing ? 'none' : 'auto'
+      }}
+    >
+      {/* 左侧编辑器 */}
+      <div style={{ 
+        width: `${leftWidth}%`, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        minWidth: 0,
+        paddingRight: 6
+      }}>
+        <div style={{ 
+          fontSize: 12, 
+          color: '#666', 
+          marginBottom: 4,
+          padding: '0 4px',
+          fontWeight: 500
+        }}>
+          编辑
+        </div>
+        <TextArea
+          ref={textareaRef}
+          value={markdownContent}
         onChange={handleChange}
-        style={{ flex: 1,height:'80vh' }}
-      />
+          placeholder="输入 Markdown 格式的内容..."
+          style={{
+            flex: 1,
+            fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
+            fontSize: 14,
+            lineHeight: 1.6,
+            resize: 'none'
+          }}
+          autoSize={{ minRows: 10 }}
+        />
+      </div>
+      
+      {/* 可拖拽的分隔条 */}
+      <div
+        onMouseDown={handleMouseDown}
+        style={{
+          width: '8px',
+          cursor: 'col-resize',
+          backgroundColor: isResizing ? '#1890ff' : '#d9d9d9',
+          transition: isResizing ? 'none' : 'background-color 0.2s',
+          position: 'relative',
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+        title="拖拽调整大小"
+      >
+        <div style={{
+          width: '2px',
+          height: '40px',
+          backgroundColor: isResizing ? '#fff' : '#999',
+          borderRadius: '1px'
+        }} />
+      </div>
+      
+      {/* 右侧预览 */}
+      <div style={{ 
+        flex: 1, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        minWidth: 0,
+        paddingLeft: 6
+      }}>
+        <div style={{ 
+          fontSize: 12, 
+          color: '#666', 
+          marginBottom: 4,
+          padding: '0 4px',
+          fontWeight: 500
+        }}>
+          预览
+        </div>
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '24px',
+            borderRadius: 4,
+            fontSize: 14,
+            lineHeight: 1.8,
+            minHeight: 0
+          }}
+          className="markdown-preview"
+          dangerouslySetInnerHTML={{ __html: previewHtml }}
+        />
+      </div>
     </div>
   )
 }

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { Button, Input, List, Typography, Tag, message, AutoComplete, Spin, theme } from 'antd'
 import { ColumnWidthOutlined, CloseOutlined, SendOutlined, RobotOutlined, FolderOutlined, FileTextOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import { renderMarkdown } from '../lib/markdown'
-import striptags from 'striptags'
 const { TextArea } = Input
 
 export default function AIChatTab({ 
@@ -423,9 +422,8 @@ export default function AIChatTab({
             console.log(`[AIChatTab] GetCategoryContent 返回: length=${content?.length || 0}, content=${content?.substring(0, 100) || 'empty'}...`)
             
             if (content && content.trim()) {
-              let _content = striptags(content);
-              console.log(`[AIChatTab] 处理后内容长度: ${_content.length}`)
-              contextTexts.push(`[目录: ${ctx.name}]\n${_content}`)
+              console.log(`[AIChatTab] 处理后内容长度: ${content.length}`)
+              contextTexts.push(`[目录: ${ctx.name}]\n${content}`)
               console.log(`[AIChatTab] 已添加目录上下文: ${ctx.name}`)
             } else {
               console.warn(`[AIChatTab] 目录内容为空: ${ctx.name} (id=${ctx.id})`)
@@ -436,8 +434,7 @@ export default function AIChatTab({
             console.log(`[AIChatTab] GetNoteContent 返回: length=${content?.length || 0}`)
             
             if (content && content.trim()) {
-              let _content = striptags(content);
-              contextTexts.push(`[笔记: ${ctx.name}]\n${_content}`)
+              contextTexts.push(`[笔记: ${ctx.name}]\n${content}`)
               console.log(`[AIChatTab] 已添加笔记上下文: ${ctx.name}`)
             } else {
               console.warn(`[AIChatTab] 笔记内容为空: ${ctx.name} (id=${ctx.id})`)
@@ -457,8 +454,7 @@ export default function AIChatTab({
         const historyText = recent
           .map(msg => {
             const roleLabel = msg.role === 'user' ? '用户' : '助手'
-            const plain = striptags(msg.content || '')
-            return `${roleLabel}: ${plain}`
+            return `${roleLabel}: ${msg.content}`
           })
           .join('\n\n')
 
@@ -660,7 +656,7 @@ export default function AIChatTab({
                         ? token.colorPrimaryBg 
                         : token.colorSuccessBg,
                       color: token.colorText,
-                      padding: '12px 16px',
+                      padding: '12px 32px',
                       borderRadius: 8,
                       maxWidth: '80%',
                       border: `1px solid ${msg.role === 'user' ? token.colorPrimaryBorder : token.colorSuccessBorder}`

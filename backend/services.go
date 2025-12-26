@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -678,6 +679,99 @@ func (a *App) SaveImage(imageDataBase64 string) (string, error) {
 	
 	// 返回相对路径，前端可以使用 file:// 协议或相对路径引用
 	return relativePath, nil
+}
+
+// MigrateBase64ImagesToLocal 将笔记中的 base64 图片迁移到本地文件
+// 返回迁移统计信息
+func (a *App) MigrateBase64ImagesToLocal() (map[string]interface{}, error) {
+	log.Printf("[MigrateBase64Images] 开始迁移 base64 图片到本地文件")
+	
+	// 获取所有笔记
+	var notes []Note
+	if err := DB.Find(&notes).Error; err != nil {
+		log.Printf("[MigrateBase64Images] 获取笔记列表失败: %v", err)
+		return nil, fmt.Errorf("获取笔记列表失败: %v", err)
+	}
+	
+	totalNotes := len(notes)
+	processedNotes := 0
+	totalImages := 0
+	migratedImages := 0
+	errors := []string{}
+	
+	log.Printf("[MigrateBase64Images] 找到 %d 条笔记，开始处理", totalNotes)
+	
+	for _, note := range notes {
+		if note.ContentMD == "" {
+			continue
+		}
+		
+		// 查找 base64 图片
+		// 匹配格式: ![alt](data:image/xxx;base64,...) 或 <img src="data:image/xxx;base64,...">
+		// 使用更精确的正则，匹配完整的 data URL（包括 base64 数据）
+		base64ImageRegex := regexp.MustCompile(`data:image/[^;]+;base64,[A-Za-z0-9+/=]+`)
+		matches := base64ImageRegex.FindAllString(note.ContentMD, -1)
+		
+		if len(matches) == 0 {
+			continue
+		}
+		
+		log.Printf("[MigrateBase64Images] 笔记 ID=%d, 标题=%s, 找到 %d 个 base64 图片", note.ID, note.Title, len(matches))
+		totalImages += len(matches)
+		
+		updatedContent := note.ContentMD
+		noteUpdated := false
+		
+		for _, base64Data := range matches {
+			// 保存图片到本地
+			relativePath, err := a.SaveImage(base64Data)
+			if err != nil {
+				log.Printf("[MigrateBase64Images] 保存图片失败: %v", err)
+				errors = append(errors, fmt.Sprintf("笔记 %d (%s): %v", note.ID, note.Title, err))
+				continue
+			}
+			
+			// 替换 base64 为本地路径
+			// 处理 Markdown 格式: ![alt](data:...) -> ![alt](local://images/...)
+			// 使用 QuoteMeta 转义特殊字符，确保精确匹配
+			oldPattern := regexp.QuoteMeta(base64Data)
+			newPath := fmt.Sprintf("local://images/%s", relativePath)
+			updatedContent = regexp.MustCompile(oldPattern).ReplaceAllString(updatedContent, newPath)
+			
+			migratedImages++
+			noteUpdated = true
+			previewLen := 50
+			if len(base64Data) < previewLen {
+				previewLen = len(base64Data)
+			}
+			log.Printf("[MigrateBase64Images] 图片已迁移: %s -> %s", base64Data[:previewLen]+"...", newPath)
+		}
+		
+		// 如果内容有更新，保存笔记
+		if noteUpdated {
+			if err := DB.Model(&Note{}).Where("id = ?", note.ID).Update("content_md", updatedContent).Error; err != nil {
+				log.Printf("[MigrateBase64Images] 更新笔记失败 ID=%d: %v", note.ID, err)
+				errors = append(errors, fmt.Sprintf("更新笔记 %d (%s) 失败: %v", note.ID, note.Title, err))
+			} else {
+				processedNotes++
+				log.Printf("[MigrateBase64Images] 笔记已更新: ID=%d, 标题=%s", note.ID, note.Title)
+			}
+		}
+	}
+	
+	result := map[string]interface{}{
+		"totalNotes":     totalNotes,
+		"processedNotes": processedNotes,
+		"totalImages":    totalImages,
+		"migratedImages": migratedImages,
+		"errors":         errors,
+		"success":        len(errors) == 0,
+	}
+	
+	log.Printf("[MigrateBase64Images] 迁移完成: 处理了 %d/%d 条笔记, 迁移了 %d/%d 张图片", 
+		processedNotes, totalNotes, migratedImages, totalImages)
+	
+	return result, nil
 }
 
 // GetImageContent 获取图片的 base64 编码内容
