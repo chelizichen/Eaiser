@@ -73,7 +73,7 @@ export default function TOCViewer({ headings = [], onHeadingClick }) {
     try {
       if (selectedKeys.length > 0 && onHeadingClick) {
         const nodeId = selectedKeys[0]
-        console.log('handleSelect.nodeId', nodeId)
+        console.log('handleSelect', info)
         onHeadingClick(nodeId)
       }
     } catch (e) {
@@ -90,8 +90,8 @@ export default function TOCViewer({ headings = [], onHeadingClick }) {
   }
 
   return (
-    <div style={{ padding: 16, height: '100%', overflow: 'auto' }}>
-      <Typography.Title level={5} style={{ marginBottom: 16 }}>
+    <div style={{ padding: 12, height: '100%', overflow: 'auto' }}>
+      <Typography.Title level={5} style={{ marginBottom: 12, marginTop: 0, fontSize: 16 }}>
         目录
       </Typography.Title>
       <Tree

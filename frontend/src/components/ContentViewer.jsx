@@ -5,6 +5,7 @@ import { renderMarkdown } from '../lib/markdown'
 import { extractHeadings } from '../lib/extractHeadings'
 import { processMarkdownHtml } from '../lib/imageUtils'
 import PDFViewer from './PDFViewer'
+import TOCViewer from './TOCViewer'
 import ErrorBoundary from './ErrorBoundary'
 import 'highlight.js/styles/github.css'
 import hljs from 'highlight.js'
@@ -21,6 +22,9 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
   const [executing, setExecuting] = useState(false)
   const [execResult, setExecResult] = useState(null)
   const [processedHtml, setProcessedHtml] = useState('')
+  const [tocVisible, setTocVisible] = useState(true) // 目录是否可见
+  const [tocWidth, setTocWidth] = useState(250) // 目录宽度（像素）
+  const [isResizingTOC, setIsResizingTOC] = useState(false) // 是否正在调整目录宽度
 
   async function load() {
     if (!item) return
@@ -128,6 +132,8 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
     try {
       // 统一使用 Markdown 格式提取标题
       const extracted = extractHeadings(raw, false)
+      console.log('extracted',extracted);
+      
       return extracted
     } catch (e) {
       console.error('Error extracting headings:', e)
@@ -137,42 +143,14 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
 
   // 处理标题点击，滚动到对应位置（必须在 headings 定义之后）
   const handleHeadingClick = useCallback((headingId) => {
-    // 首先尝试在 viewer-content 容器内查找
-    const contentContainer = contentRef.current
-    if (!contentContainer) {
-      return
-    }
+    console.log('headingId',headingId);
     
     // 在容器内查找标题元素
-    // 尝试多种选择器：ID、data-id、或者通过文本内容查找
-    let element = contentContainer.querySelector(`#${headingId}`)
-    if (!element) {
-      // 如果通过 ID 找不到，尝试查找所有 h1-h6，然后通过文本匹配
-      const allHeadings = contentContainer.querySelectorAll('h1, h2, h3, h4, h5, h6')
-      for (const heading of allHeadings) {
-        const headingIdFromElement = heading.id || heading.getAttribute('data-id') || ''
-        if (headingIdFromElement === headingId) {
-          element = heading
-          break
-        }
-      }
-    }
-    
+    // 使用 data-heading-id 属性查找（避免 CSS id 命名规范冲突）
+    let element = contentContainer.querySelector(`[data-heading-id="${headingId}"]`)
+    console.log('element',element);
     if (element) {
-      
-      // 获取容器的滚动位置
-      const containerRect = contentContainer.getBoundingClientRect()
-      const elementRect = element.getBoundingClientRect()
-      const scrollTop = contentContainer.scrollTop
-      const targetScrollTop = scrollTop + elementRect.top - containerRect.top - 20 // 20px 偏移
-      
-
-      // 平滑滚动
-      contentContainer.scrollTo({
-        top: targetScrollTop,
-        behavior: 'smooth'
-      })
-      
+      element.scrollIntoView({ behavior: 'smooth',block:'start' });
       // 高亮一下（可选）
       const originalBg = element.style.backgroundColor
       const originalTransition = element.style.transition
@@ -188,19 +166,40 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
     }
   }, [])
 
-  // 打开目录 pane（必须在组件顶层调用，在 headings 定义之后）
-  const handleOpenTOC = useCallback(() => {
-    try {
-      if (onOpenTOC && headings.length > 0) {
-        onOpenTOC(headings, handleHeadingClick)
-      } else if (onSplitPane) {
-        // 如果没有 onOpenTOC，使用分屏功能
-        onSplitPane()
-      }
-    } catch (e) {
-      console.error('Error opening TOC:', e)
+  // 切换目录显示/隐藏
+  const handleToggleTOC = useCallback(() => {
+    setTocVisible(prev => !prev)
+  }, [])
+
+  // 处理目录拖拽调整大小
+  const handleTOCMouseDown = useCallback((e) => {
+    e.preventDefault()
+    setIsResizingTOC(true)
+  }, [])
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizingTOC) return
+      
+      // 计算新的目录宽度（限制在 150px 到 400px 之间）
+      const newWidth = e.clientX - (contentRef.current?.getBoundingClientRect().left || 0)
+      const clampedWidth = Math.max(150, Math.min(400, newWidth))
+      setTocWidth(clampedWidth)
     }
-  }, [onOpenTOC, headings, handleHeadingClick, onSplitPane])
+
+    const handleMouseUp = () => {
+      setIsResizingTOC(false)
+    }
+
+    if (isResizingTOC) {
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove)
+        window.removeEventListener('mouseup', handleMouseUp)
+      }
+    }
+  }, [isResizingTOC])
 
   // 处理执行脚本
   const handleExecuteScript = useCallback(async () => {
@@ -365,11 +364,13 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
         const contentContainer = contentRef.current
         if (!contentContainer) return
         
-        // 确保所有标题元素都有 ID（Markdown 渲染的标题通常已经有 ID，但确保一下）
+        // 确保所有标题元素都有 data-heading-id（Markdown 渲染的标题通常已经有，但确保一下）
         if (currentHeadings && currentHeadings.length > 0) {
           const headingElements = contentContainer.querySelectorAll('h1, h2, h3, h4, h5, h6')
           headingElements.forEach((element, index) => {
-            if (!element.id) {
+            // 检查是否已有 data-heading-id
+            const existingDataId = element.getAttribute('data-heading-id')
+            if (!existingDataId) {
               // 从 headings 数组中查找匹配的标题
               const text = element.textContent || element.innerText || ''
               const matchingHeading = currentHeadings.find(h => 
@@ -379,7 +380,11 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
               )
               
               if (matchingHeading) {
-                element.id = matchingHeading.id
+                element.setAttribute('data-heading-id', matchingHeading.id)
+                // 如果存在 id 属性，移除它（避免 CSS 命名规范冲突）
+                if (element.id) {
+                  element.removeAttribute('id')
+                }
               } else {
                 // 如果没有匹配的，生成一个 ID
                 const generatedId = text
@@ -389,7 +394,16 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
                   .replace(/\s+/g, '-')
                   .replace(/-+/g, '-')
                   .replace(/^-+|-+$/g, '') || `heading-${index}`
-                element.id = generatedId
+                element.setAttribute('data-heading-id', generatedId)
+                // 如果存在 id 属性，移除它
+                if (element.id) {
+                  element.removeAttribute('id')
+                }
+              }
+            } else {
+              // 如果已有 data-heading-id，但还存在 id 属性，移除 id（清理旧数据）
+              if (element.id) {
+                element.removeAttribute('id')
               }
             }
           })
@@ -682,10 +696,8 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
               type="text"
               size="small"
               icon={<UnorderedListOutlined />}
-              onClick={() => {
-                handleOpenTOC()
-              }}
-              title={`目录 (${headings.length} 个标题)`}
+              onClick={handleToggleTOC}
+              title={tocVisible ? `隐藏目录 (${headings.length} 个标题)` : `显示目录 (${headings.length} 个标题)`}
             />
           )}
             <Button
@@ -706,39 +718,96 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
           </div>
           <div
             style={{
-              display: 'grid',
-              gap: 12,
-              overflow: 'auto',
+              display: 'flex',
               height: '90vh',
-              alignContent: 'start',
-              alignItems: 'start',
+              overflow: 'hidden',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-              <Typography.Title level={4} style={{ margin: 0 }}>{data.title}</Typography.Title>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <Button
-                  size="small"
-                  type="primary"
-                  icon={<EditOutlined />}
-                  onClick={() => onEdit && onEdit({ item, data })}
+            {/* 左侧目录 */}
+            {tocVisible && headings.length > 0 && (
+              <>
+                <div
+                  style={{
+                    width: `${tocWidth}px`,
+                    flexShrink: 0,
+                    borderRight: '1px solid #d9d9d9',
+                    overflow: 'auto',
+                    backgroundColor: '#fafafa',
+                  }}
                 >
-                  编辑
-                </Button>
-                <Button
-                  size="small"
-                  type="text"
-                  icon={<FolderOutlined />}
-                  onClick={() => setCategoryModalVisible(true)}
-                  title="修改目录"
+                  <TOCViewer headings={headings} onHeadingClick={handleHeadingClick} />
+                </div>
+                {/* 可拖拽的分隔条 */}
+                {/* <div
+                  onMouseDown={handleTOCMouseDown}
+                  style={{
+                    width: '8px',
+                    cursor: 'col-resize',
+                    backgroundColor: isResizingTOC ? '#1890ff' : '#d9d9d9',
+                    // transition: isResizingTOC ? 'none' : 'background-color 0.2s',
+                    position: 'relative',
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  title="拖拽调整目录宽度"
+                >
+                  <div style={{
+                    width: '2px',
+                    height: '40px',
+                    backgroundColor: isResizingTOC ? '#fff' : '#999',
+                    borderRadius: '1px'
+                  }} />
+                </div> */}
+              </>
+            )}
+            {/* 右侧内容 */}
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'auto',
+                minWidth: 0,
+              }}
+            >
+              <div
+                style={{
+                  display: 'grid',
+                  gap: 12,
+                  padding: '16px',
+                  alignContent: 'start',
+                  alignItems: 'start',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                  <Typography.Title level={4} style={{ margin: 0 }}>{data.title}</Typography.Title>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <Button
+                      size="small"
+                      type="primary"
+                      icon={<EditOutlined />}
+                      onClick={() => onEdit && onEdit({ item, data })}
+                    >
+                      编辑
+                    </Button>
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<FolderOutlined />}
+                      onClick={() => setCategoryModalVisible(true)}
+                      title="修改目录"
+                    />
+                  </div>
+                </div>
+                <div 
+                  ref={contentRef}
+                  className="viewer-content" 
+                  dangerouslySetInnerHTML={{ __html: processedHtml || html }} 
                 />
               </div>
             </div>
-            <div 
-              ref={contentRef}
-              className="viewer-content" 
-              dangerouslySetInnerHTML={{ __html: processedHtml || html }} 
-            />
           </div>
           {/* 图片预览 */}
           {previewImage.src && (

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { Input } from 'antd'
+import { Input, Button } from 'antd'
+import { EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons'
 import { renderMarkdown } from '../lib/markdown'
 import { processMarkdownHtml } from '../lib/imageUtils'
 import 'highlight.js/styles/github.css'
@@ -12,6 +13,7 @@ function MarkdownEditor({ valueMD, onChangeMD, height = '60vh' }) {
   const lastValueMDRef = useRef('')
   const [leftWidth, setLeftWidth] = useState(50) // 左侧编辑器宽度百分比
   const [isResizing, setIsResizing] = useState(false)
+  const [previewVisible, setPreviewVisible] = useState(true) // 预览是否可见
   const containerRef = useRef(null)
 
   // 初始化/变更时同步外部传入的内容
@@ -183,20 +185,36 @@ function MarkdownEditor({ valueMD, onChangeMD, height = '60vh' }) {
     >
       {/* 左侧编辑器 */}
       <div style={{ 
-        width: `${leftWidth}%`, 
+        width: previewVisible ? `${leftWidth}%` : '100%', 
         display: 'flex', 
         flexDirection: 'column', 
         minWidth: 0,
-        paddingRight: 6
+        paddingRight: previewVisible ? 6 : 0
       }}>
         <div style={{ 
           fontSize: 12, 
           color: '#666', 
           marginBottom: 4,
           padding: '0 4px',
-          fontWeight: 500
+          fontWeight: 500,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
         }}>
-          编辑
+          <span>编辑</span>
+          <Button
+            type="text"
+            size="small"
+            icon={previewVisible ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+            onClick={() => setPreviewVisible(!previewVisible)}
+            style={{ 
+              fontSize: 12,
+              padding: '0 4px',
+              height: 'auto',
+              lineHeight: 1
+            }}
+            title={previewVisible ? '隐藏预览' : '显示预览'}
+          />
         </div>
         <TextArea
           ref={textareaRef}
@@ -215,60 +233,64 @@ function MarkdownEditor({ valueMD, onChangeMD, height = '60vh' }) {
       </div>
       
       {/* 可拖拽的分隔条 */}
-      <div
-        onMouseDown={handleMouseDown}
-        style={{
-          width: '8px',
-          cursor: 'col-resize',
-          backgroundColor: isResizing ? '#1890ff' : '#d9d9d9',
-          transition: isResizing ? 'none' : 'background-color 0.2s',
-          position: 'relative',
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-        title="拖拽调整大小"
-      >
-        <div style={{
-          width: '2px',
-          height: '40px',
-          backgroundColor: isResizing ? '#fff' : '#999',
-          borderRadius: '1px'
-        }} />
-      </div>
+      {previewVisible && (
+        <div
+          onMouseDown={handleMouseDown}
+          style={{
+            width: '8px',
+            cursor: 'col-resize',
+            backgroundColor: isResizing ? '#1890ff' : '#d9d9d9',
+            transition: isResizing ? 'none' : 'background-color 0.2s',
+            position: 'relative',
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          title="拖拽调整大小"
+        >
+          <div style={{
+            width: '2px',
+            height: '40px',
+            backgroundColor: isResizing ? '#fff' : '#999',
+            borderRadius: '1px'
+          }} />
+        </div>
+      )}
       
       {/* 右侧预览 */}
-      <div style={{ 
-        flex: 1, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        minWidth: 0,
-        paddingLeft: 6
-      }}>
+      {previewVisible && (
         <div style={{ 
-          fontSize: 12, 
-          color: '#666', 
-          marginBottom: 4,
-          padding: '0 4px',
-          fontWeight: 500
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          minWidth: 0,
+          paddingLeft: 6
         }}>
-          预览
+          <div style={{ 
+            fontSize: 12, 
+            color: '#666', 
+            marginBottom: 4,
+            padding: '0 4px',
+            fontWeight: 500
+          }}>
+            预览
+          </div>
+          <div
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '24px',
+              borderRadius: 4,
+              fontSize: 14,
+              lineHeight: 1.8,
+              minHeight: 0
+            }}
+            className="markdown-preview"
+            dangerouslySetInnerHTML={{ __html: previewHtml }}
+          />
         </div>
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: '24px',
-            borderRadius: 4,
-            fontSize: 14,
-            lineHeight: 1.8,
-            minHeight: 0
-          }}
-          className="markdown-preview"
-          dangerouslySetInnerHTML={{ __html: previewHtml }}
-        />
-      </div>
+      )}
     </div>
   )
 }

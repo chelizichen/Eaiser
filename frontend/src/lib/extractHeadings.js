@@ -22,7 +22,8 @@ function extractHeadingsFromHTML(html) {
       const tagName = element.tagName.toLowerCase()
       const level = parseInt(tagName.substring(1)) // h1 -> 1, h2 -> 2, etc.
       const text = element.textContent || element.innerText || ''
-      let id = element.id || ''
+      // 优先从 data-heading-id 读取，如果没有则从 id 读取（兼容旧数据）
+      let id = element.getAttribute('data-heading-id') || element.id || ''
       
       // 如果没有 ID，生成一个
       if (!id) {
@@ -38,8 +39,12 @@ function extractHeadingsFromHTML(html) {
           id = `heading-${index}`
         }
         
-        // 设置元素的 ID，以便后续跳转
-        element.id = id
+        // 设置元素的 data-heading-id 属性，以便后续跳转（不使用 id 避免 CSS 命名规范冲突）
+        element.setAttribute('data-heading-id', id)
+        // 如果存在 id 属性，移除它
+        if (element.id) {
+          element.removeAttribute('id')
+        }
       }
       
       headings.push({
@@ -74,36 +79,9 @@ export function extractHeadings(content, isHTML = false) {
 
   // 否则从 Markdown 中提取
   try {
-    const tokens = marked.lexer(content)
-    const headings = []
-    
-    tokens
-      .filter(token => token.type === 'heading')
-      .forEach(token => {
-        // 生成 ID，与 marked 的 headerIds 选项保持一致
-        // marked 默认使用文本转小写、替换特殊字符、空格转连字符的方式
-        // 参考 marked 的默认 slugify 实现
-        let id = token.text
-          .toLowerCase()
-          .trim()
-          .replace(/[^\w\s-]/g, '') // 移除特殊字符（保留字母、数字、下划线、连字符、空格）
-          .replace(/\s+/g, '-') // 空格转连字符
-          .replace(/-+/g, '-') // 多个连字符合并为一个
-          .replace(/^-+|-+$/g, '') // 移除首尾连字符
-        
-        // 如果 ID 为空，使用备用 ID
-        if (!id) {
-          id = `heading-${headings.length}`
-        }
-        
-        headings.push({
-          level: token.depth, // 1-6
-          text: token.text,
-          id: id || `heading-${headings.length}` // 如果 ID 为空，使用备用 ID
-        })
-      })
-    
-    return headings
+    // 先渲染成 HTML，然后从 HTML 中提取，这样可以确保 ID 与 marked 生成的一致
+    const html = marked.parse(content)
+    return extractHeadingsFromHTML(html)
   } catch (error) {
     console.error('Error extracting headings from Markdown:', error)
     // 如果 Markdown 解析失败，尝试从 HTML 中提取
