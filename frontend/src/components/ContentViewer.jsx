@@ -96,8 +96,7 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
 
   // 计算派生值（必须在所有 hooks 之前，但可以在 useEffect 之后）
   const raw = data?.contentMd || ''
-  const isHTML = raw.trim().startsWith('<')
-  const html = isHTML ? raw : renderMarkdown(raw)
+  const html = renderMarkdown(raw)
   
   // 处理本地图片
   useEffect(() => {
@@ -124,14 +123,14 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
       return []
     }
     try {
-      // 无论是 HTML 还是 Markdown，都尝试提取标题
-      const extracted = extractHeadings(raw, isHTML)
+      // 统一使用 Markdown 格式提取标题
+      const extracted = extractHeadings(raw, false)
       return extracted
     } catch (e) {
       console.error('Error extracting headings:', e)
       return []
     }
-  }, [data, item, raw, isHTML])
+  }, [data, item, raw])
 
   // 处理标题点击，滚动到对应位置（必须在 headings 定义之后）
   const handleHeadingClick = useCallback((headingId) => {
@@ -348,11 +347,10 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
   useEffect(() => {
     // 在 effect 内部计算，避免依赖外部变量
     const currentRaw = data?.contentMd || ''
-    const currentIsHTML = currentRaw.trim().startsWith('<')
     let currentHeadings = []
     if (data && item && item.type === 'note' && item.id && currentRaw) {
       try {
-        currentHeadings = extractHeadings(currentRaw, currentIsHTML)
+        currentHeadings = extractHeadings(currentRaw, false)
       } catch (e) {
         // 忽略错误，继续执行
       }
@@ -364,8 +362,8 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
         const contentContainer = contentRef.current
         if (!contentContainer) return
         
-        // 确保所有标题元素都有 ID（用于 HTML 内容）
-        if (currentIsHTML && currentHeadings && currentHeadings.length > 0) {
+        // 确保所有标题元素都有 ID（Markdown 渲染的标题通常已经有 ID，但确保一下）
+        if (currentHeadings && currentHeadings.length > 0) {
           const headingElements = contentContainer.querySelectorAll('h1, h2, h3, h4, h5, h6')
           headingElements.forEach((element, index) => {
             if (!element.id) {

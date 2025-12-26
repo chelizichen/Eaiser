@@ -74,8 +74,7 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
           }
           
           // 渲染 Markdown 内容预览
-          const isHTML = contentMd.trim().startsWith('<')
-          let html = isHTML ? contentMd : renderMarkdown(contentMd)
+          let html = renderMarkdown(contentMd)
           
           // 处理预览中的本地图片
           html = await processLocalImagesInHtml(html, {

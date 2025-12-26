@@ -59,7 +59,7 @@ export default function NotesTab({ activeCategory, onSaved, editingNote, onSplit
   }, [editingNote])
 
   async function add() {
-    // 对于 Type 2，直接使用纯文本；对于普通笔记，使用 copyMarkdown（可能是 HTML）
+    // 对于 Type 2，直接使用纯文本；对于普通笔记，使用 Markdown 格式
     const contentToSave = noteType === 2 ? copyMarkdown.trim() : copyMarkdown
 
     if (editingNote?.id) {

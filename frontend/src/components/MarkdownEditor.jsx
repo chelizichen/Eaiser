@@ -1,20 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { Input } from 'antd'
-import TurndownService from 'turndown'
-import { gfm } from 'turndown-plugin-gfm'
 import { renderMarkdown } from '../lib/markdown'
 import { processMarkdownHtml } from '../lib/imageUtils'
 import 'highlight.js/styles/github.css'
 
 const { TextArea } = Input
-
-// 初始化 Turndown 服务（用于 HTML 转 Markdown）
-const turndownService = new TurndownService({
-  headingStyle: 'atx', // 使用 # 格式的标题
-  codeBlockStyle: 'fenced', // 使用 ``` 格式的代码块
-  bulletListMarker: '-', // 使用 - 作为列表标记
-})
-turndownService.use(gfm) // 支持 GitHub Flavored Markdown
 
 function MarkdownEditor({ valueMD, onChangeMD, height = '60vh' }) {
   const textareaRef = useRef(null)
@@ -37,23 +27,8 @@ function MarkdownEditor({ valueMD, onChangeMD, height = '60vh' }) {
       return
     }
     
-    // 判断是 HTML 还是 Markdown
-    // 如果包含 HTML 标签，则认为是 HTML，需要转换
-    const isHTML = /<[a-z][\s\S]*>/i.test(valueMD)
-    
-    if (isHTML) {
-      // HTML 转 Markdown
-      try {
-        const markdown = turndownService.turndown(valueMD)
-        setMarkdownContent(markdown)
-      } catch (e) {
-        console.error('HTML to Markdown conversion failed:', e)
-        setMarkdownContent(valueMD) // 转换失败时使用原值
-      }
-    } else {
-      // 已经是 Markdown，直接使用
-      setMarkdownContent(valueMD)
-    }
+    // 统一使用 Markdown 格式，不再支持 HTML
+    setMarkdownContent(valueMD)
   }, [valueMD])
 
   // 处理文本变化
