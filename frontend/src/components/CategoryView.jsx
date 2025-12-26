@@ -74,12 +74,15 @@ export default function CategoryView({ activeCategory, onNavigate, reloadToken, 
           }
           
           // 渲染 Markdown 内容预览
-          let html = renderMarkdown(contentMd)
+          let html = renderMarkdown(contentMd,{removeImages: true})
           
           // 处理预览中的本地图片
           html = await processLocalImagesInHtml(html, {
             imageStyle: { width: '100%', margin: '8px 0' }
           })
+          console.log('html',html);
+          console.log('contentMd',contentMd);
+          
           
           // 限制预览长度：截取前 500 个字符的内容
           const maxPreviewLength = 500
