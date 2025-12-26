@@ -453,6 +453,7 @@ export default function App() {
                     <ContentViewer
                       item={pane.selectedItem}
                       categories={categories}
+                      isDarkMode={isDarkMode}
                       onCategoryChanged={refreshCategories}
                       onEdit={({ item: it, data }) => {
                         const targetId = it?.id || data?.id

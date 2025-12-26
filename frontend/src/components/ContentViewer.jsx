@@ -12,7 +12,7 @@ import hljs from 'highlight.js'
 
 const { Panel } = Collapse
 
-export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, canClose = true, onOpenTOC, categories = [] }) {
+export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, canClose = true, onOpenTOC, categories = [], isDarkMode = false }) {
   const [data, setData] = useState(null)
   const [pdfPath, setPdfPath] = useState(null)
   const contentRef = useRef(null)
@@ -730,9 +730,9 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
                   style={{
                     width: `${tocWidth}px`,
                     flexShrink: 0,
-                    borderRight: '1px solid #d9d9d9',
+                    borderRight: `1px solid ${isDarkMode ? '#333333' : '#d9d9d9'}`,
                     overflow: 'auto',
-                    backgroundColor: '#fafafa',
+                    backgroundColor: isDarkMode ? '#2d2d2d' : '#fafafa',
                   }}
                 >
                   <TOCViewer headings={headings} onHeadingClick={handleHeadingClick} />
