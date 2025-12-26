@@ -17,7 +17,17 @@ marked.setOptions({
 })
 
 export function renderMarkdown(md) {
-  const html = marked.parse(md || '')
-  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
+  if (!md) return ''
+  
+  const html = marked.parse(md)
+  const sanitized = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
+  
+  // 后处理：将空段落转换为换行，保留空行的视觉效果
+  // 将 <p></p> 或只包含空白字符的 <p> 转换为 <br/>
+  const processedHtml = sanitized
+    .replace(/<p>\s*<\/p>/g, '<br/>')
+    .replace(/<p>(\s|&nbsp;)*<\/p>/g, '<br/>')
+  
+  return processedHtml
 }
 

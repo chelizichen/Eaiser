@@ -73,6 +73,12 @@ html, body, #root { height: 100vh;overflow: hidden; }
 }
 .viewer { max-width: 100%; overflow: auto; }
 .viewer-content img { max-width: 100%; height: auto; }
+.viewer-content p { 
+  margin: 0.75em 0; 
+  line-height: 1.6;
+}
+.viewer-content p:first-child { margin-top: 0; }
+.viewer-content p:last-child { margin-bottom: 0; }
 .viewer-content pre {
   overflow: auto;
   white-space: pre-wrap;

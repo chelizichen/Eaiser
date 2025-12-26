@@ -107,6 +107,9 @@ export default function ContentViewer({ item, onEdit, onSplitPane, onClosePane, 
       }
       
       // 使用 processMarkdownHtml 处理，它会从原始 Markdown 中恢复丢失的图片 src
+      console.log('raw',raw);
+      console.log('html',html);
+      
       const processedHtml = await processMarkdownHtml(raw, html)
       setProcessedHtml(processedHtml)
     }
